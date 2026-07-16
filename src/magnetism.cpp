@@ -79,6 +79,8 @@ GroupId MagnetismEngine::group_nearby(Canvas& canvas, WindowId center_id, float 
     Vec2 center_pos = center_w->center();
     float r2 = radius * radius;
 
+    GroupId prev_group = center_w->group;  // save in case cluster is a singleton
+
     GroupId gid = canvas.create_group("cluster");
 
     // Add the center window
@@ -91,6 +93,17 @@ GroupId MagnetismEngine::group_nearby(Canvas& canvas, WindowId center_id, float 
         if (distance_squared(center_pos, w.center()) <= r2) {
             canvas.add_to_group(id, gid);
         }
+    }
+
+    // If no neighbors were found, remove the orphan group
+    auto* group = canvas.get_group(gid);
+    if (group && group->size() <= 1) {
+        canvas.destroy_group(gid);
+        // Restore previous group membership
+        if (prev_group != NO_GROUP) {
+            canvas.add_to_group(center_id, prev_group);
+        }
+        return NO_GROUP;
     }
 
     return gid;
