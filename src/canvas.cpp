@@ -93,6 +93,12 @@ ChromaWindow Canvas::remove(WindowId id) {
         std::fprintf(stderr, "[chroma] Canvas::remove: window %lu not found\n", id);
         return ChromaWindow{};
     }
+
+    // Remove from group BEFORE erasing — remove_from_group calls get(id)
+    if (it->second.group != NO_GROUP) {
+        remove_from_group(id);
+    }
+
     ChromaWindow w = std::move(it->second);
     windows_.erase(it);
 
@@ -100,11 +106,6 @@ ChromaWindow Canvas::remove(WindowId id) {
     auto z_it = std::find(z_order_.begin(), z_order_.end(), id);
     if (z_it != z_order_.end()) {
         z_order_.erase(z_it);
-    }
-
-    // Remove from group
-    if (w.group != NO_GROUP) {
-        remove_from_group(w.id);
     }
 
     // Clear focus if this was focused
