@@ -1,5 +1,13 @@
 #pragma once
 
+/// @file magnetism.hpp
+/// @brief MagnetismEngine — magnetic window positioning: snap-to-group,
+/// attraction (gravity metaphor), and grid-snapping. Applied after moves,
+/// resizes, and window creation for a polished spatial experience.
+///
+/// The Config struct documents the magic constants and their physical
+/// meaning (see attraction_scale and max_attraction_force).
+
 #include "types.hpp"
 #include "canvas.hpp"
 #include <vector>

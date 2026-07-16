@@ -1,5 +1,13 @@
 #pragma once
 
+/// @file canvas.hpp
+/// @brief The Canvas — the infinite 2D spatial model that holds all windows.
+///
+/// The Canvas is the heart of Chroma WM's spatial paradigm. It manages window
+/// CRUD, viewport transform (pan/zoom), Z-ordering, and window grouping.
+/// All coordinates are in "canvas space" — an unbounded 2D plane — unless
+/// explicitly noted as screen space.
+
 #include "types.hpp"
 #include "window.hpp"
 #include <unordered_map>
@@ -30,6 +38,15 @@ struct WindowGroup {
 // Canvas — the infinite 2D space that holds all windows
 // ============================================================================
 
+/// The infinite 2D spatial model that holds all managed windows.
+///
+/// Windows live at arbitrary (x, y) positions on an unbounded plane.
+/// The viewport defines the region currently visible on screen:
+///   - viewport_center: the canvas-space point at the center of the screen
+///   - zoom: uniform scale factor (0.25–4.0)
+///
+/// Window ordering is tracked via an explicit Z-order list for deterministic
+/// hit-testing, topmost-window-first.
 class Canvas {
 public:
     // --- Viewport state ---
@@ -45,16 +62,23 @@ public:
     void pan(Vec2 delta);
 
     /// Zoom by `factor` (multiplicative), keeping `anchor` fixed on screen.
-    /// `anchor` is in screen coordinates (typically screen center).
+    /// @param factor  Multiplicative zoom factor (> 1 zooms in, < 1 zooms out)
+    /// @param anchor  Screen-space point to keep fixed (typically cursor position)
+    /// @param screen_size  Current output dimensions in pixels
     void zoom_at(float factor, Vec2 anchor, Vec2 screen_size);
 
     /// The visible region of the canvas given a screen size.
+    /// @param screen_size  Current output dimensions in pixels
+    /// @return  Axis-aligned rectangle in canvas space visible on screen
     Rect visible_rect(Vec2 screen_size) const;
 
     /// Convert a canvas-space rect to screen-space.
     Rect canvas_to_screen(const Rect& r, Vec2 screen_size) const;
 
     /// Convert a screen-space point to canvas-space.
+    /// @param screen_pos  Pixel position on the output
+    /// @param screen_size  Current output dimensions in pixels
+    /// @return  Corresponding point in canvas space
     Vec2 screen_to_canvas(Vec2 screen_pos, Vec2 screen_size) const;
 
     /// Get the current viewport transform.
@@ -63,15 +87,23 @@ public:
     // --- Window management ---
 
     /// Add a window to the canvas. Returns its ID.
+    /// @param window  The window to add (its ID will be assigned if INVALID_WINDOW)
+    /// @return  The assigned window ID
     WindowId add(ChromaWindow window);
 
     /// Remove a window and return its data. Window must exist.
+    /// @param id  The window to remove
+    /// @return  The removed window's data (for transferring state)
     ChromaWindow remove(WindowId id);
 
     /// Move a window to a new canvas position.
+    /// @param id  Window to move
+    /// @param new_pos  New top-left corner in canvas space
     void move_window(WindowId id, Vec2 new_pos);
 
     /// Resize a window.
+    /// @param id  Window to resize
+    /// @param new_size  New dimensions in canvas space (width, height)
     void resize_window(WindowId id, Vec2 new_size);
 
     /// Get a window by ID. Returns nullptr if not found.
@@ -82,9 +114,14 @@ public:
     const std::unordered_map<WindowId, ChromaWindow>& all_windows() const { return windows_; }
 
     /// Windows that are currently visible in the viewport.
+    /// @param screen_size  Current output dimensions in pixels
+    /// @return  IDs of windows whose bounding boxes intersect the viewport
     std::vector<WindowId> visible_windows(Vec2 screen_size) const;
 
     /// Find the topmost window at `canvas_pos`. Returns INVALID_WINDOW if none.
+    /// Iterates the Z-order list from top to bottom.
+    /// @param canvas_pos  Point in canvas space to test
+    /// @return  The topmost window containing the point, or INVALID_WINDOW
     WindowId window_at(Vec2 canvas_pos) const;
 
     /// Raise a window to the top of the Z-order.

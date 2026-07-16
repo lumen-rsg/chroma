@@ -1,5 +1,11 @@
 #pragma once
 
+/// @file window.hpp
+/// @brief ChromaWindow — the domain entity representing a managed toplevel window.
+///
+/// Owns no Wayland or wlroots resources; those live in the adapter layer
+/// (XdgShellHandler). This separation keeps the domain pure and testable.
+
 #include "types.hpp"
 #include <string>
 

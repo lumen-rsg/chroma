@@ -1,5 +1,14 @@
 #pragma once
 
+/// @file input.hpp
+/// @brief InputRouter — translates raw keysyms and modifier masks into
+/// high-level domain Actions. Also defines the Action enum and key/modifier
+/// constant namespaces used throughout the compositor.
+///
+/// The router is pure domain logic: it takes keysym + modifiers → Action.
+/// The adapter layer (SeatManager) feeds it events from wlroots/libinput
+/// and executes the returned actions.
+
 #include "types.hpp"
 #include "canvas.hpp"
 #include "focus.hpp"
@@ -60,20 +69,20 @@ namespace Key {
 
 /// Action the input router can emit — used for testing / extensibility.
 enum class Action {
-    NONE,
-    PAN_LEFT,
-    PAN_RIGHT,
-    PAN_UP,
-    PAN_DOWN,
-    ZOOM_IN,
-    ZOOM_OUT,
-    FOCUS_NEXT,
-    FOCUS_PREV,
-    STACK_CYCLE,
-    STACK_WINDOW,
-    UNSTACK_WINDOW,
-    GROUP_HERE,
-    QUIT,
+    NONE,            ///< No action taken (key forwarded to client)
+    PAN_LEFT,        ///< Pan viewport left
+    PAN_RIGHT,       ///< Pan viewport right
+    PAN_UP,          ///< Pan viewport up
+    PAN_DOWN,        ///< Pan viewport down
+    ZOOM_IN,         ///< Zoom viewport in (toward cursor)
+    ZOOM_OUT,        ///< Zoom viewport out (away from cursor)
+    FOCUS_NEXT,      ///< Cycle focus to next window in MRU order
+    FOCUS_PREV,      ///< Cycle focus to previous window in MRU order
+    STACK_CYCLE,     ///< Cycle the focused window's card stack
+    STACK_WINDOW,    ///< Add focused window to a stack
+    UNSTACK_WINDOW,  ///< Remove focused window from its stack
+    GROUP_HERE,      ///< Create a magnetic group from nearby windows
+    QUIT,            ///< Terminate the compositor
 };
 
 class InputRouter {

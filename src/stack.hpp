@@ -1,5 +1,10 @@
 #pragma once
 
+/// @file stack.hpp
+/// @brief CardStack and StackManager — window card-stacking with visual
+/// cascading. Stacks group windows as a deck where only the top card is
+/// fully visible; cycling rotates the deck. Pure domain logic.
+
 #include "types.hpp"
 #include "canvas.hpp"
 #include <unordered_map>

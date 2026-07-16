@@ -1,5 +1,13 @@
 #pragma once
 
+/// @file focus.hpp
+/// @brief FocusTracker — maintains MRU (Most-Recently-Used) focus history
+/// for keyboard-driven window cycling (Alt+Tab style).
+///
+/// Pure domain logic with no Wayland dependencies. Uses a bounded deque
+/// (max 50 entries) to prevent unbounded growth. Windows are automatically
+/// removed from history when destroyed via the remove() method.
+
 #include "types.hpp"
 #include "canvas.hpp"
 #include <deque>

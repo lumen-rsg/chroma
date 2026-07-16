@@ -1,5 +1,10 @@
 #pragma once
 
+/// @file types.hpp
+/// @brief Core math primitives, geometry types, and configuration constants
+/// for the Chroma WM domain layer. All types are pure C++ with no Wayland
+/// or wlroots dependencies, making them independently testable.
+
 #include <cstdint>
 #include <cmath>
 #include <algorithm>
@@ -10,6 +15,8 @@ namespace chroma {
 // Math Primitives
 // ============================================================================
 
+/// 2D vector with standard arithmetic operations.
+/// Used for positions, sizes, velocities, and screen coordinates.
 struct Vec2 {
     float x{0.0f};
     float y{0.0f};
@@ -61,6 +68,8 @@ inline float distance_squared(Vec2 a, Vec2 b) {
 // Axis-aligned Rectangle
 // ============================================================================
 
+/// Axis-aligned rectangle defined by a top-left corner position and size.
+/// Used for window bounding boxes, viewport regions, and hit-test areas.
 struct Rect {
     Vec2 pos{0, 0};   // top-left corner
     Vec2 size{0, 0};  // width, height
@@ -104,6 +113,10 @@ struct Rect {
 // 2D Transform (translation + uniform scale)
 // ============================================================================
 
+/// 2D transform combining translation and uniform scale.
+/// Represents the viewport: maps between the infinite canvas space and the
+/// finite screen space. The offset is the canvas point at screen center;
+/// scale is the uniform zoom factor.
 struct Transform2D {
     Vec2 offset{0, 0};  // translation (viewport center in canvas space)
     float scale{1.0f};  // uniform zoom factor
