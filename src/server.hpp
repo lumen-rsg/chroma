@@ -57,6 +57,10 @@ public:
     void run();
     void terminate();
 
+    /// Schedule a frame on all connected outputs. Call after any input-driven
+    /// state change that needs re-rendering (pan, zoom, move, resize, etc.).
+    void schedule_all_frames();
+
 private:
     bool init_backend();
     bool init_renderer_and_allocator();

@@ -165,6 +165,12 @@ void WlrootsServer::terminate() {
     wl_display_terminate(display);
 }
 
+void WlrootsServer::schedule_all_frames() {
+    for (auto* scene_output : scene_outputs) {
+        wlr_output_schedule_frame(scene_output->output);
+    }
+}
+
 // ============================================================================
 // Backend event handlers
 // ============================================================================

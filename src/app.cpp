@@ -115,11 +115,15 @@ void ChromaApp::on_new_window(WindowId id, wlr_surface* surface) {
 
     // Apply magnetic positioning
     magnetism_.apply(canvas_, id);
+
+    server_.schedule_all_frames();
 }
 
 void ChromaApp::on_window_destroyed(WindowId id) {
     focus_.remove(id);
     renderer_.on_window_removed(id);
+
+    server_.schedule_all_frames();
 }
 
 void ChromaApp::on_window_mapped(WindowId id, wlr_surface* surface) {
@@ -132,6 +136,8 @@ void ChromaApp::on_window_mapped(WindowId id, wlr_surface* surface) {
 
     // Apply magnetism
     magnetism_.apply(canvas_, id);
+
+    server_.schedule_all_frames();
 }
 
 // ============================================================================

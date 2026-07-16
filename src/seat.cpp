@@ -217,6 +217,8 @@ void SeatManager::handle_keyboard_key(wl_listener* listener, void* data) {
             }
             default: break;
             }
+            // State was modified — schedule a frame
+            self->server_->schedule_all_frames();
         }
     }
 
@@ -305,6 +307,7 @@ void SeatManager::handle_cursor_motion(wl_listener* listener, void* data) {
     if (self->viewport_dragging_) {
         Vec2 delta = self->cursor_pos_ - old_pos;
         self->canvas_->pan(-delta / self->canvas_->zoom);
+        self->server_->schedule_all_frames();
     }
     else if (self->window_dragging_) {
         Vec2 delta = (self->cursor_pos_ - old_pos) / self->canvas_->zoom;
@@ -312,11 +315,13 @@ void SeatManager::handle_cursor_motion(wl_listener* listener, void* data) {
             self->window_drag_moved_ = true;
             self->canvas_->move_window(self->dragged_window_,
                 self->canvas_->get(self->dragged_window_)->canvas_pos + delta);
+            self->server_->schedule_all_frames();
         }
     }
     else if (self->resize_dragging_) {
         Vec2 delta = (self->cursor_pos_ - old_pos) / self->canvas_->zoom;
         self->apply_resize(delta);
+        self->server_->schedule_all_frames();
     }
 
     self->input_router_->on_pointer_move(self->cursor_pos_);
@@ -334,6 +339,7 @@ void SeatManager::handle_cursor_motion_absolute(wl_listener* listener, void* dat
     if (self->viewport_dragging_) {
         Vec2 delta = self->cursor_pos_ - old_pos;
         self->canvas_->pan(-delta / self->canvas_->zoom);
+        self->server_->schedule_all_frames();
     }
     else if (self->window_dragging_) {
         Vec2 delta = (self->cursor_pos_ - old_pos) / self->canvas_->zoom;
@@ -341,11 +347,13 @@ void SeatManager::handle_cursor_motion_absolute(wl_listener* listener, void* dat
             self->window_drag_moved_ = true;
             self->canvas_->move_window(self->dragged_window_,
                 self->canvas_->get(self->dragged_window_)->canvas_pos + delta);
+            self->server_->schedule_all_frames();
         }
     }
     else if (self->resize_dragging_) {
         Vec2 delta = (self->cursor_pos_ - old_pos) / self->canvas_->zoom;
         self->apply_resize(delta);
+        self->server_->schedule_all_frames();
     }
 
     self->input_router_->on_pointer_move(self->cursor_pos_);
@@ -410,6 +418,7 @@ void SeatManager::handle_cursor_button(wl_listener* listener, void* data) {
             self->focus_->focused(id);
             self->update_keyboard_focus(self->xdg_handler_);
         }
+        self->server_->schedule_all_frames();
         return;
     }
 
@@ -429,6 +438,7 @@ void SeatManager::handle_cursor_button(wl_listener* listener, void* data) {
             }
         }
         self->magnetism_->apply(*self->canvas_, id);
+        self->server_->schedule_all_frames();
         return;
     }
 
@@ -449,6 +459,7 @@ void SeatManager::handle_cursor_axis(wl_listener* listener, void* data) {
                 ? 1.0f - config::ZOOM_STEP : 1.0f + config::ZOOM_STEP;
         }
         self->canvas_->zoom_at(factor, self->cursor_pos_, screen_size);
+        self->server_->schedule_all_frames();
         return;
     }
 

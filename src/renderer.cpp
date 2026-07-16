@@ -152,7 +152,11 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
     clock_gettime(CLOCK_MONOTONIC, &now);
     wlr_scene_output_send_frame_done(scene_output, &now);
     
-    wlr_output_schedule_frame(output);
+    // Only schedule a new frame if there's pending damage — avoids
+    // continuous busy-loop rendering when the screen is static.
+    if (wlr_scene_output_needs_frame(scene_output)) {
+        wlr_output_schedule_frame(output);
+    }
 }
 
 WindowSceneData* SceneRenderer::get_scene_data(WindowId id) {
