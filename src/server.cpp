@@ -73,7 +73,12 @@ bool WlrootsServer::init() {
     wl_signal_add(&backend->events.new_input, &on_new_input);
 
     // Set environment for clients (before backend start so socket is ready)
-    setenv("WAYLAND_DISPLAY", wl_display_add_socket_auto(display), 1);
+    const char* socket_name = wl_display_add_socket_auto(display);
+    if (!socket_name) {
+        std::fprintf(stderr, "Failed to create Wayland socket\n");
+        return false;
+    }
+    setenv("WAYLAND_DISPLAY", socket_name, 1);
 
     // NOTE: backend is NOT started here. Call start_backend() after all
     // external listeners (SeatManager, output handlers) are connected.

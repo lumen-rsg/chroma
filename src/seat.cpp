@@ -1,5 +1,6 @@
 #include "seat.hpp"
 #include <cstdio>
+#include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 
 namespace chroma {
@@ -354,7 +355,7 @@ void SeatManager::handle_cursor_button(wl_listener* listener, void* data) {
     auto* event = static_cast<wlr_pointer_button_event*>(data);
 
     bool pressed = event->state == WL_POINTER_BUTTON_STATE_PRESSED;
-    bool is_left = event->button == 0x110;
+    bool is_left = event->button == BTN_LEFT;
     bool alt_held = (self->modifier_state_ & Mod::ALT) != 0;
 
     // Alt+Left drag → pan viewport

@@ -1,4 +1,5 @@
 #include "input.hpp"
+#include <linux/input-event-codes.h>
 
 namespace chroma {
 
@@ -18,7 +19,7 @@ Action InputRouter::on_key(Canvas& canvas, FocusTracker& focus, StackManager& st
         ksym_lower = keysym + 0x20;
 
     // --- Quit ---
-    if ((super && shift && ksym_lower == Key::E) || ksym_lower == Key::ESC) {
+    if (super && shift && ksym_lower == Key::E) {
         return Action::QUIT;
     }
 
@@ -121,7 +122,7 @@ Action InputRouter::on_pointer_button(Canvas& canvas, FocusTracker& focus,
     if (!pressed) return Action::NONE;
 
     // Left click — focus window under cursor
-    if (button == 0x110) { // BTN_LEFT
+    if (button == BTN_LEFT) {
         Vec2 canvas_pos = canvas.screen_to_canvas(screen_pos, screen_size);
         WindowId id = canvas.window_at(canvas_pos);
         if (id != INVALID_WINDOW) {
