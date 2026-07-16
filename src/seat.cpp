@@ -85,7 +85,7 @@ void SeatManager::update_keyboard_focus(XdgShellHandler* xdg_handler) {
     
     // Deactivate previously focused window
     if (prev_focused_ != INVALID_WINDOW) {
-        if (auto* tl = xdg_handler->toplevel_for(prev_focused)) {
+        if (auto* tl = xdg_handler->toplevel_for(prev_focused_)) {
             wlr_xdg_toplevel_set_activated(tl, false);
             wlr_xdg_surface_schedule_configure(tl->base);
         }
