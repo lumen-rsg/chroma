@@ -113,6 +113,12 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Viewporter (for crop/scale surface views)
+    if (!wlr_viewporter_create(display)) {
+        std::fprintf(stderr, "Failed to create viewporter\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);

@@ -34,6 +34,7 @@ extern "C" {
 		#include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_presentation_time.h>
+#include <wlr/types/wlr_viewporter.h>
 }
 
 namespace chroma {
