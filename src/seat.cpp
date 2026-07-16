@@ -98,8 +98,12 @@ void SeatManager::update_keyboard_focus(XdgShellHandler* xdg_handler) {
     // Deactivate previously focused window
     if (prev_focused_ != INVALID_WINDOW) {
         if (auto* tl = xdg_handler->toplevel_for(prev_focused_)) {
-            wlr_xdg_toplevel_set_activated(tl, false);
-            wlr_xdg_surface_schedule_configure(tl->base);
+            // wlroots 0.20: set_activated internally calls
+            // wlr_xdg_surface_schedule_configure, which asserts initialized.
+            if (tl->base->initialized) {
+                wlr_xdg_toplevel_set_activated(tl, false);
+                // No need for explicit schedule_configure — set_activated does it.
+            }
         }
     }
     prev_focused_ = focused;
@@ -123,8 +127,11 @@ void SeatManager::update_keyboard_focus(XdgShellHandler* xdg_handler) {
     }
     
     // Activate the new focused window
-    wlr_xdg_toplevel_set_activated(toplevel, true);
-    wlr_xdg_surface_schedule_configure(toplevel->base);
+    // wlroots 0.20: set_activated internally calls schedule_configure,
+    // which asserts initialized. Guard against uninitialized surfaces.
+    if (toplevel->base->initialized) {
+        wlr_xdg_toplevel_set_activated(toplevel, true);
+    }
     
     wlr_surface* surface = toplevel->base->surface;
     if (!surface) return;
@@ -474,11 +481,11 @@ void SeatManager::handle_cursor_button(wl_listener* listener, void* data) {
         // Notify client of the final size
         if (auto* tl = self->xdg_handler_->toplevel_for(id)) {
             auto* win = self->canvas_->get(id);
-            if (win) {
+            if (win && tl->base->initialized) {
                 int w = std::max(100, (int)win->size.x);
                 int h = std::max(100, (int)win->size.y);
+                // set_size internally calls schedule_configure (wlroots 0.20+)
                 wlr_xdg_toplevel_set_size(tl, w, h);
-                wlr_xdg_surface_schedule_configure(tl->base);
             }
         }
         self->magnetism_->apply(*self->canvas_, id);

@@ -7,7 +7,7 @@ int main(int argc, char* argv[]) {
 
     std::printf("╔══════════════════════════════════╗\n");
     std::printf("║       Chroma WM  v0.1.0          ║\n");
-    std::printf("║  spatial canvas window manager    ║\n");
+    std::printf("║  spatial canvas window manager   ║\n");
     std::printf("╚══════════════════════════════════╝\n\n");
 
     chroma::ChromaApp app;

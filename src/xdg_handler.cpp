@@ -147,13 +147,18 @@ void XdgShellHandler::handle_new_toplevel(wl_listener* listener, void* data) {
         wlr_xdg_surface* xdg = td->toplevel->base;
         wlr_xdg_toplevel* toplevel = td->toplevel;
 
-        if (win && xdg->initial_commit) {
+        // wlroots 0.20: the compositor must send the initial configure
+        // manually.  initial_commit is true only on the very first commit,
+        // and initialized is guaranteed true at that point.
+        if (win && xdg->initial_commit && xdg->initialized) {
             // Give the client a reasonable default size
             int width = std::max(100, (int)win->size.x);
             int height = std::max(100, (int)win->size.y);
+            // Note: wlr_xdg_toplevel_set_size / _set_activated internally
+            // call wlr_xdg_surface_schedule_configure, so there is no need
+            // for a separate explicit call.
             wlr_xdg_toplevel_set_size(toplevel, width, height);
             wlr_xdg_toplevel_set_activated(toplevel, true);
-            wlr_xdg_surface_schedule_configure(xdg);
         }
         // Note: don't overwrite win->size from client geometry on every commit —
         // the compositor controls the size. The client's geometry reflects the
@@ -236,9 +241,23 @@ void XdgShellHandler::handle_new_toplevel_decoration(wl_listener* listener, void
     auto* decor = static_cast<wlr_xdg_toplevel_decoration_v1*>(data);
     (void)handler;
 
-    // Always request client-side decorations (CSD) — we don't draw SSD yet
-    wlr_xdg_toplevel_decoration_v1_set_mode(decor,
-        WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+    // Always request client-side decorations (CSD) — we don't draw SSD yet.
+    //
+    // wlroots 0.20: set_mode internally calls wlr_xdg_surface_schedule_configure,
+    // which asserts that the surface is initialized.  If the client creates
+    // the decoration before the initial commit (e.g. kitty batches requests),
+    // the surface won't be initialized yet.  In that case we just set the
+    // scheduled mode directly; the mode will be picked up when the configure
+    // is sent during the initial_commit handler.
+    wlr_xdg_surface* xdg_surface = decor->toplevel->base;
+    if (xdg_surface->initialized) {
+        wlr_xdg_toplevel_decoration_v1_set_mode(decor,
+            WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+    } else {
+        // Surface not yet initialized — set scheduled_mode directly.
+        // The configure will be sent later by the commit handler.
+        decor->scheduled_mode = WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+    }
 }
 
 // ============================================================================
