@@ -187,9 +187,9 @@ namespace config {
 
     // Shadow configuration
     constexpr int   SHADOW_LAYERS   = 4;
-    constexpr float SHADOW_OFFSET_X = 4.0f;   // base horizontal offset per layer
-    constexpr float SHADOW_OFFSET_Y = 4.0f;   // base vertical offset per layer
-    constexpr float SHADOW_GROW     = 4.0f;   // extra size per layer on each side
+    constexpr float SHADOW_OFFSET_X = 2.0f;   // base horizontal offset per layer (directional)
+    constexpr float SHADOW_OFFSET_Y = 2.0f;   // base vertical offset per layer
+    constexpr float SHADOW_GROW     = 4.0f;   // extra spread per side, per layer
 }
 
 } // namespace chroma

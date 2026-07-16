@@ -351,7 +351,7 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
                 // Subtle dark for unfocused windows
                 color[0] = 0.15f; color[1] = 0.15f; color[2] = 0.18f;
             }
-            color[3] = data.visual_opacity * (win.focused ? 1.0f : 0.85f);
+            color[3] = data.visual_opacity;
             
             wlr_scene_rect_set_color(data.bg_rect, color);
             wlr_scene_rect_set_size(data.bg_rect,
