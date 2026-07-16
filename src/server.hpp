@@ -28,6 +28,8 @@ extern "C" {
 #include <wlr/types/wlr_xdg_activation_v1.h>
 	#include <wlr/types/wlr_xdg_decoration_v1.h>
 	#include <wlr/types/wlr_layer_shell_v1.h>
+	#include <wlr/types/wlr_primary_selection_v1.h>
+	#include <wlr/types/wlr_ext_data_control_v1.h>
 }
 
 namespace chroma {

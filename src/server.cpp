@@ -50,6 +50,12 @@ bool WlrootsServer::init() {
     // Data device manager (for clipboard / drag-drop)
     wlr_data_device_manager_create(display);
 
+    // Primary selection (middle-click paste)
+    wlr_primary_selection_v1_device_manager_create(display);
+
+    // Clipboard manager protocol (for clipboard persistence via external managers)
+    wlr_ext_data_control_manager_v1_create(display, 1);
+
     // Subcompositor — required by many clients (kitty, firefox, etc.)
     wlr_subcompositor_create(display);
 
