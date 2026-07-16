@@ -127,6 +127,9 @@ public:
     /// Raise a window to the top of the Z-order.
     void raise_to_top(WindowId id);
 
+    /// Read-only access to the Z-order list (index 0 = bottom, back() = top).
+    const std::vector<WindowId>& z_order() const { return z_order_; }
+
     // --- Focus ---
 
     void set_focus(WindowId id);

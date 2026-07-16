@@ -35,6 +35,19 @@ void MagnetismEngine::snap_to_nearby(Canvas& canvas, WindowId window_id) {
         // Grid-align the position
         canvas.move_window(window_id, snap_to_grid(new_pos));
 
+        // Resolve any overlaps caused by the snap
+        Rect snap_rect = w->canvas_rect();
+        for (const auto& [oid, ow] : canvas.all_windows()) {
+            if (oid == window_id) continue;
+            if (!ow.mapped) continue;
+            if (ow.stack != NO_STACK && w->stack == ow.stack) continue;
+            if (snap_rect.overlaps(ow.canvas_rect())) {
+                Vec2 push = snap_rect.separation_vector(ow.canvas_rect());
+                canvas.move_window(window_id, w->canvas_pos + push);
+                snap_rect.pos = snap_rect.pos + push;
+            }
+        }
+
         return;
     }
 
@@ -76,7 +89,24 @@ void MagnetismEngine::attract_group(Canvas& canvas, WindowId moved_id) {
         force = std::min(force, config.max_attraction_force);
 
         Vec2 displacement = dir.normalized() * force;
-        canvas.move_window(other_id, other->canvas_pos + displacement);
+        Vec2 new_pos = other->canvas_pos + displacement;
+        canvas.move_window(other_id, new_pos);
+
+        // Resolve overlaps with non-group windows (magnetism should not cause
+        // windows from different groups to overlap — that's what stacks are for).
+        Rect moved_rect = other->canvas_rect();  // re-read after move
+        for (const auto& [oid, ow] : canvas.all_windows()) {
+            if (oid == other_id) continue;
+            if (oid == moved_id) continue;  // the dragged window, overlap is fine
+            if (!ow.mapped) continue;
+            if (ow.group == w->group) continue;  // same group: attraction pulls together
+            if (ow.stack != NO_STACK && other->stack == ow.stack) continue;
+            if (moved_rect.overlaps(ow.canvas_rect())) {
+                Vec2 push = moved_rect.separation_vector(ow.canvas_rect());
+                canvas.move_window(other_id, other->canvas_pos + push);
+                moved_rect.pos = moved_rect.pos + push;
+            }
+        }
     }
 }
 

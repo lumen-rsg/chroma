@@ -22,7 +22,8 @@ class SeatManager {
 public:
     SeatManager(WlrootsServer* server, Canvas* canvas, FocusTracker* focus,
                 InputRouter* input_router, StackManager* stacks,
-                MagnetismEngine* magnetism, XdgShellHandler* xdg_handler);
+                MagnetismEngine* magnetism, XdgShellHandler* xdg_handler,
+                SceneRenderer* renderer);
     ~SeatManager();
 
     /// Connect to input device signals. Call after server init.
@@ -54,6 +55,7 @@ private:
     StackManager* stacks_;
     MagnetismEngine* magnetism_;
     XdgShellHandler* xdg_handler_{nullptr};
+    SceneRenderer* renderer_{nullptr};
 
     Vec2 cursor_pos_{0, 0};
     WindowId prev_focused_{INVALID_WINDOW};  // tracks last keyboard focus target

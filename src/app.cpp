@@ -17,7 +17,7 @@ ChromaApp::ChromaApp()
     , layer_shell_(&server_)
     , foreign_toplevel_(&server_)
     , renderer_(&server_, &canvas_, &xdg_handler_, &stacks_)
-    , seat_(&server_, &canvas_, &focus_, &input_router_, &stacks_, &magnetism_, &xdg_handler_)
+    , seat_(&server_, &canvas_, &focus_, &input_router_, &stacks_, &magnetism_, &xdg_handler_, &renderer_)
 {}
 
 ChromaApp::~ChromaApp() {

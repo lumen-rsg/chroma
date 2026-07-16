@@ -7,10 +7,11 @@ namespace chroma {
 
 SeatManager::SeatManager(WlrootsServer* server, Canvas* canvas, FocusTracker* focus,
                          InputRouter* input_router, StackManager* stacks,
-                         MagnetismEngine* magnetism, XdgShellHandler* xdg_handler)
+                         MagnetismEngine* magnetism, XdgShellHandler* xdg_handler,
+                         SceneRenderer* renderer)
     : server_{server}, canvas_{canvas}, focus_{focus},
       input_router_{input_router}, stacks_{stacks}, magnetism_{magnetism},
-      xdg_handler_{xdg_handler}
+      xdg_handler_{xdg_handler}, renderer_{renderer}
 {
     wl_list_init(&on_new_input_.link);
     wl_list_init(&on_keyboard_key_.link);
@@ -364,8 +365,34 @@ void SeatManager::handle_cursor_motion(wl_listener* listener, void* data) {
         Vec2 delta = (self->cursor_pos_ - old_pos) / self->canvas_->zoom;
         if (delta.x != 0.0f || delta.y != 0.0f) {
             self->window_drag_moved_ = true;
-            self->canvas_->move_window(self->dragged_window_,
-                self->canvas_->get(self->dragged_window_)->canvas_pos + delta);
+            auto* win = self->canvas_->get(self->dragged_window_);
+            Vec2 new_pos = win->canvas_pos + delta;
+
+            // Collision detection: if Super is NOT held, prevent overlap
+            bool super_held = self->input_router_->super_held();
+            if (!super_held) {
+                Rect new_rect{new_pos, win->size};
+                Vec2 total_push{0, 0};
+                for (const auto& [other_id, other] : self->canvas_->all_windows()) {
+                    if (other_id == self->dragged_window_) continue;
+                    if (!other.mapped) continue;
+                    // Allow overlap within the same stack (stacked cards share space)
+                    if (win->stack != NO_STACK && win->stack == other.stack) continue;
+                    if (new_rect.overlaps(other.canvas_rect())) {
+                        Vec2 push = new_rect.separation_vector(other.canvas_rect());
+                        total_push = total_push + push;
+                        new_rect.pos = new_rect.pos + push;
+                    }
+                }
+                if (total_push.x != 0.0f || total_push.y != 0.0f) {
+                    new_pos = new_rect.pos;
+                    // Trigger a visual jiggle away from the collision direction
+                    self->renderer_->trigger_jiggle(self->dragged_window_,
+                        delta * -1.0f);
+                }
+            }
+
+            self->canvas_->move_window(self->dragged_window_, new_pos);
             self->server_->schedule_all_frames();
         }
     }
@@ -396,8 +423,32 @@ void SeatManager::handle_cursor_motion_absolute(wl_listener* listener, void* dat
         Vec2 delta = (self->cursor_pos_ - old_pos) / self->canvas_->zoom;
         if (delta.x != 0.0f || delta.y != 0.0f) {
             self->window_drag_moved_ = true;
-            self->canvas_->move_window(self->dragged_window_,
-                self->canvas_->get(self->dragged_window_)->canvas_pos + delta);
+            auto* win = self->canvas_->get(self->dragged_window_);
+            Vec2 new_pos = win->canvas_pos + delta;
+
+            // Collision detection: if Super is NOT held, prevent overlap
+            bool super_held = self->input_router_->super_held();
+            if (!super_held) {
+                Rect new_rect{new_pos, win->size};
+                Vec2 total_push{0, 0};
+                for (const auto& [other_id, other] : self->canvas_->all_windows()) {
+                    if (other_id == self->dragged_window_) continue;
+                    if (!other.mapped) continue;
+                    if (win->stack != NO_STACK && win->stack == other.stack) continue;
+                    if (new_rect.overlaps(other.canvas_rect())) {
+                        Vec2 push = new_rect.separation_vector(other.canvas_rect());
+                        total_push = total_push + push;
+                        new_rect.pos = new_rect.pos + push;
+                    }
+                }
+                if (total_push.x != 0.0f || total_push.y != 0.0f) {
+                    new_pos = new_rect.pos;
+                    self->renderer_->trigger_jiggle(self->dragged_window_,
+                        delta * -1.0f * self->canvas_->zoom);
+                }
+            }
+
+            self->canvas_->move_window(self->dragged_window_, new_pos);
             self->server_->schedule_all_frames();
         }
     }
@@ -461,7 +512,60 @@ void SeatManager::handle_cursor_button(wl_listener* listener, void* data) {
         self->dragged_window_ = INVALID_WINDOW;
 
         if (self->window_drag_moved_) {
-            // Actual drag → apply magnetism
+            auto* win = self->canvas_->get(id);
+
+            // --- Handle stacked window drag ---
+            // Dragging a stacked window away from its stack → unstack it.
+            // Dragging within the stack area → promote to top (active card).
+            if (win && win->stack != NO_STACK) {
+                auto* stack = self->stacks_->get(win->stack);
+                bool still_overlaps = false;
+                if (stack) {
+                    Rect drag_rect = win->canvas_rect();
+                    for (WindowId other_id : stack->windows) {
+                        if (other_id == id) continue;
+                        auto* other = self->canvas_->get(other_id);
+                        if (other && drag_rect.overlaps(other->canvas_rect())) {
+                            still_overlaps = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!still_overlaps) {
+                    // Dragged away from the stack → unstack
+                    self->stacks_->unstack(*self->canvas_, id);
+                } else {
+                    // Still in the stack area → promote to front (top card)
+                    if (stack) {
+                        // Move the stack position to where the user placed this card
+                        stack->position = win->canvas_pos;
+                        // Reorder: remove from current position, insert at front
+                        stack->push(id);
+                    }
+                }
+            }
+
+            // --- Super+drag to stack (for non-stacked windows) ---
+            if (self->input_router_->super_held() && win && win->stack == NO_STACK) {
+                Rect drag_rect = win->canvas_rect();
+                for (const auto& [other_id, other] : self->canvas_->all_windows()) {
+                    if (other_id == id) continue;
+                    if (!other.mapped) continue;
+                    if (drag_rect.overlaps(other.canvas_rect())) {
+                        // Find or create a stack for the target window
+                        StackId target_stack = other.stack;
+                        if (target_stack == NO_STACK) {
+                            target_stack = self->stacks_->create(other.canvas_pos);
+                            self->stacks_->stack(*self->canvas_, other_id, target_stack);
+                        }
+                        // Stack the dragged window
+                        self->stacks_->stack(*self->canvas_, id, target_stack);
+                        break;
+                    }
+                }
+            }
+
             self->magnetism_->apply(*self->canvas_, id);
         } else {
             // No movement → click-to-focus
@@ -569,6 +673,18 @@ void SeatManager::apply_resize(Vec2 delta) {
 
     if (r.size.x < 100) { r.size.x = 100; if (edges & WLR_EDGE_LEFT) r.pos.x = win->canvas_rect().right() - 100; }
     if (r.size.y < 100) { r.size.y = 100; if (edges & WLR_EDGE_TOP) r.pos.y = win->canvas_rect().bottom() - 100; }
+
+    // Prevent resize from causing overlap with other windows.
+    // Push the resized window away from any overlapping window.
+    for (const auto& [other_id, other] : canvas_->all_windows()) {
+        if (other_id == resized_window_) continue;
+        if (!other.mapped) continue;
+        if (win->stack != NO_STACK && win->stack == other.stack) continue;
+        if (r.overlaps(other.canvas_rect())) {
+            Vec2 push = r.separation_vector(other.canvas_rect());
+            r.pos = r.pos + push;
+        }
+    }
 
     win->canvas_pos = r.pos;
     win->size = r.size;

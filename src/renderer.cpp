@@ -216,6 +216,18 @@ void SceneRenderer::on_window_removed(WindowId id) {
     scene_data_.erase(it);
 }
 
+void SceneRenderer::trigger_jiggle(WindowId id, Vec2 impact_direction) {
+    auto it = scene_data_.find(id);
+    if (it == scene_data_.end()) return;
+    // Convert canvas-space impact to a screen-space velocity impulse.
+    // The jiggle is purely visual so screen-space units are correct.
+    float mag = impact_direction.length();
+    if (mag < 0.01f) return;
+    // Scale by zoom so the impulse magnitude matches what the user sees
+    Vec2 impulse = impact_direction.normalized() * std::min(mag * canvas_->zoom, 60.0f);
+    it->second.jiggle.start(impulse);
+}
+
 // ============================================================================
 // Animation ticking
 // ============================================================================
@@ -242,8 +254,22 @@ bool SceneRenderer::has_active_animations() const {
     for (const auto& [id, data] : scene_data_) {
         if (data.is_animating()) return true;
         if (data.visual_converging) return true;
+        if (data.jiggle.active()) return true;
     }
     return false;
+}
+
+void SceneRenderer::sync_scene_z_order() {
+    // Walk the domain Z-order from bottom (index 0) to top (back()).
+    // Repeatedly raising each node to top builds the correct stacking order
+    // in the wlr_scene tree so it matches the domain model.
+    const auto& z_order = canvas_->z_order();
+    for (WindowId id : z_order) {
+        auto it = scene_data_.find(id);
+        if (it != scene_data_.end()) {
+            wlr_scene_node_raise_to_top(&it->second.tree->node);
+        }
+    }
 }
 
 // ============================================================================
@@ -251,7 +277,11 @@ bool SceneRenderer::has_active_animations() const {
 // ============================================================================
 
 void SceneRenderer::update_window_visuals(WindowSceneData& data, const ChromaWindow& win,
-                                          Vec2 screen_size, float offset_x, float offset_y) {
+                                          Vec2 screen_size, float offset_x, float offset_y,
+                                          float dt) {
+    // Tick the collision jiggle animation (visual-only position wobble)
+    data.jiggle.tick(dt);
+
     Rect screen_rect = canvas_->canvas_to_screen(win.canvas_rect(), screen_size);
     Vec2 logical_pos{screen_rect.x() + offset_x, screen_rect.y() + offset_y};
     Vec2 logical_size{screen_rect.w(), screen_rect.h()};
@@ -332,6 +362,12 @@ void SceneRenderer::update_window_visuals(WindowSceneData& data, const ChromaWin
             (data.visual_size - logical_size).length_squared() > 0.5f ||
             (data.visual_opacity < 0.998f && data.visual_opacity > 0.0f);
     }
+
+    // Apply collision jiggle offset (visual-only, does not affect canvas position).
+    // This adds a decaying bounce to the window's screen position after impact.
+    if (data.jiggle.active()) {
+        data.visual_pos = data.visual_pos + data.jiggle.offset;
+    }
 }
 
 // ============================================================================
@@ -392,7 +428,7 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
         }
 
         // Update visual state (handles open/close/smooth-move animations)
-        update_window_visuals(data, win, screen_size, offset_x, offset_y);
+        update_window_visuals(data, win, screen_size, offset_x, offset_y, dt);
 
         // --- Position the scene tree ---
         wlr_scene_node_set_position(&data.tree->node,
@@ -490,6 +526,10 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
         data.last_visual_opacity = data.visual_opacity;
         data.was_focused = win.focused;
     }
+
+    // Synchronise wlr_scene node order with the domain Z-order so topmost
+    // windows in the Canvas render on top visually.
+    sync_scene_z_order();
 
     // Commit the scene to the output
     wlr_scene_output_commit(scene_output, nullptr);

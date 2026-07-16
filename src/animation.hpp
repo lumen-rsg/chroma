@@ -92,4 +92,51 @@ struct AnimationState {
     }
 };
 
+// ============================================================================
+// Jiggle animation for collision bounce
+// ============================================================================
+
+/// Tracks a decaying oscillation offset used when windows collide.
+/// The offset is applied to the window's visual (screen-space) position,
+/// creating a brief "bounce off" effect without changing canvas coordinates.
+struct JiggleState {
+    Vec2 offset{0, 0};      // current displacement in screen pixels
+    Vec2 velocity{0, 0};    // decaying velocity (screen px/s)
+
+    /// Decay the jiggle by dt seconds. Returns true while still active.
+    bool tick(float dt) {
+        if (!active()) return false;
+
+        // Exponential decay on velocity (spring damping)
+        constexpr float decay = 10.0f;  // higher = faster settle
+        float damping = std::exp(-decay * dt);
+        velocity = velocity * damping;
+
+        // Integrate velocity into offset (offset converges toward zero
+        // because velocity always points back toward equilibrium)
+        offset = offset + velocity * dt;
+
+        // Snap to rest when movement is imperceptible
+        if (velocity.length_squared() < 0.25f &&
+            offset.length_squared() < 0.25f) {
+            velocity = {0, 0};
+            offset = {0, 0};
+        }
+
+        return active();
+    }
+
+    /// True while the jiggle is still visibly active.
+    bool active() const {
+        return velocity.x != 0.0f || velocity.y != 0.0f
+            || offset.x != 0.0f || offset.y != 0.0f;
+    }
+
+    /// Start a jiggle with an initial velocity impulse (screen px/s).
+    void start(Vec2 impulse) {
+        velocity = impulse;
+        offset = {0, 0};
+    }
+};
+
 } // namespace chroma

@@ -60,6 +60,9 @@ struct WindowSceneData {
     /// True if the visual state is still converging toward the logical state
     /// (smooth move/resize in progress).
     bool visual_converging{false};
+
+    /// Collision bounce animation — purely visual, does not affect canvas position.
+    JiggleState jiggle;
 };
 
 /// Reads Canvas domain state and updates the wlr_scene to match.
@@ -91,6 +94,11 @@ public:
     /// Returns true if any window has an active animation.
     bool has_active_animations() const;
 
+    /// Trigger a collision jiggle on a window (visual-only bounce).
+    /// @param id  The window to jiggle
+    /// @param impact_direction  Direction of the impact (screen pixels)
+    void trigger_jiggle(WindowId id, Vec2 impact_direction);
+
 private:
     WlrootsServer* server_;
     Canvas* canvas_;
@@ -116,10 +124,15 @@ private:
 
     /// Update the position of a single window's scene node.
     void update_window_visuals(WindowSceneData& data, const ChromaWindow& win,
-                               Vec2 screen_size, float offset_x, float offset_y);
+                               Vec2 screen_size, float offset_x, float offset_y,
+                               float dt);
 
     /// Tick all animations, advancing by dt seconds.
     void tick_animations(float dt);
+
+    /// Synchronise wlr_scene node order with the Canvas Z-order so that
+    /// topmost windows in the domain model render on top.
+    void sync_scene_z_order();
 };
 
 } // namespace chroma

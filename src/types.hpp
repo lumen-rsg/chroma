@@ -104,6 +104,29 @@ struct Rect {
             && top()  < other.bottom() && bottom() > other.top();
     }
 
+    /// Minimum translation vector to push `this` rect so it no longer overlaps
+    /// `other`. Returns {0,0} if they don't overlap. The returned vector
+    /// pushes `this` away from `other` along the axis of least penetration.
+    Vec2 separation_vector(const Rect& other) const {
+        if (!overlaps(other)) return {0, 0};
+
+        // Overlap depths on each axis
+        float overlap_left   = right() - other.left();
+        float overlap_right  = other.right() - left();
+        float overlap_top    = bottom() - other.top();
+        float overlap_bottom = other.bottom() - top();
+
+        // Find the axis with smallest overlap
+        float min_x = overlap_left < overlap_right ? -overlap_left : overlap_right;
+        float min_y = overlap_top < overlap_bottom ? -overlap_top : overlap_bottom;
+
+        // Return push along the axis of least penetration
+        if (std::abs(min_x) < std::abs(min_y))
+            return {min_x, 0};
+        else
+            return {0, min_y};
+    }
+
     Rect expanded(float margin) const {
         return {pos - Vec2{margin, margin}, size + Vec2{margin * 2, margin * 2}};
     }
