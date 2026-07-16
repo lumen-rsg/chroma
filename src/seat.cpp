@@ -219,6 +219,10 @@ void SeatManager::handle_keyboard_key(wl_listener* listener, void* data) {
     wlr_keyboard_key_event* event = static_cast<wlr_keyboard_key_event*>(data);
     if (!self->keyboard_ || !self->keyboard_->xkb_state) return;
 
+    // wlroots always provides evdev keycodes regardless of backend (DRM,
+    // libinput, or nested). xkbcommon expects keycodes starting at 9
+    // (evdev keycode + 8) — this is the standard Linux input mapping and
+    // does not vary between backends.
     xkb_keysym_t keysym = xkb_state_key_get_one_sym(
         self->keyboard_->xkb_state, event->keycode + 8);
     bool pressed = event->state == WL_KEYBOARD_KEY_STATE_PRESSED;
@@ -261,9 +265,12 @@ void SeatManager::handle_keyboard_key(wl_listener* listener, void* data) {
 
     if (!handled) {
         wlr_seat_set_keyboard(self->server_->seat, self->keyboard_);
-        // Forward raw keycode — backend provides evdev; Wayland protocol
-        // expects evdev+8 but the nested Wayland backend may get raw evdev
-        // from the host. Pass as-is and let the client's xkb handle it.
+        // Forward evdev keycode to the focused client. The Wayland protocol
+        // defines keycodes as evdev scancodes, and wlroots always provides
+        // evdev keycodes in keyboard events regardless of the input backend
+        // (DRM/libinput, libinput, or nested/Wayland). The client's own
+        // xkbcommon state handles the evdev→xkb (+8) conversion internally,
+        // just as we do above for compositor-side keybinding dispatch.
         wlr_seat_keyboard_notify_key(self->server_->seat, event->time_msec,
             event->keycode, event->state);
     }
