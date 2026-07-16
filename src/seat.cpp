@@ -245,6 +245,10 @@ void SeatManager::handle_keyboard_modifiers(wl_listener* listener, void* data) {
         self->modifier_state_ |= Mod::ALT;
     if (xkb_state_mod_name_is_active(kb->xkb_state, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_DEPRESSED))
         self->modifier_state_ |= Mod::SUPER;
+    
+    // Sync super-held state to InputRouter for scroll-zoom gating
+    self->input_router_->set_super_held(
+        (self->modifier_state_ & Mod::SUPER) != 0);
 }
 
 void SeatManager::handle_keyboard_destroy(wl_listener* listener, void*) {

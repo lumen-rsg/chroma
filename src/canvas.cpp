@@ -1,6 +1,6 @@
 #include "canvas.hpp"
 #include <algorithm>
-#include <stdexcept>
+#include <cstdio>
 
 namespace chroma {
 
@@ -85,7 +85,8 @@ WindowId Canvas::add(ChromaWindow window) {
 ChromaWindow Canvas::remove(WindowId id) {
     auto it = windows_.find(id);
     if (it == windows_.end()) {
-        throw std::runtime_error("Canvas::remove: window not found");
+        std::fprintf(stderr, "[chroma] Canvas::remove: window %lu not found\n", id);
+        return ChromaWindow{};
     }
     ChromaWindow w = std::move(it->second);
     windows_.erase(it);

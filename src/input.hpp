@@ -92,6 +92,9 @@ public:
 
     /// Whether the Super key is held (for drag operations).
     bool super_held() const { return super_held_; }
+    
+    /// Set the Super-key-held state (called from SeatManager modifier handler).
+    void set_super_held(bool held) { super_held_ = held; }
 
 private:
     Vec2 pointer_screen_{0, 0};

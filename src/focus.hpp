@@ -17,6 +17,9 @@ public:
 
     /// Record that a window lost focus.
     void unfocused(WindowId id);
+    
+    /// Remove a window from the history entirely (called on window destroy).
+    void remove(WindowId id);
 
     /// The currently focused window.
     WindowId current() const;
@@ -90,6 +93,13 @@ inline WindowId FocusTracker::cycle_prev(Canvas& canvas) {
 
 inline void FocusTracker::clear() {
     history_.clear();
+}
+
+inline void FocusTracker::remove(WindowId id) {
+    auto it = std::find(history_.begin(), history_.end(), id);
+    if (it != history_.end()) {
+        history_.erase(it);
+    }
 }
 
 inline void FocusTracker::bring_to_front(WindowId id) {

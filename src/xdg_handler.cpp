@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 
 namespace chroma {
 
@@ -14,6 +15,7 @@ struct ToplevelData {
     XdgShellHandler* handler;
     WindowId window_id{INVALID_WINDOW};
     wlr_xdg_toplevel* toplevel;
+    bool destroyed_{false};  // guard against double-destroy
 
     // Listeners on wlr_surface (map/unmap/commit/destroy)
     wl_listener surface_map;
@@ -53,7 +55,7 @@ XdgShellHandler::~XdgShellHandler() {
         wl_list_remove(&td->set_app_id.link);
         wl_list_remove(&td->request_move.link);
         wl_list_remove(&td->request_resize.link);
-        delete td;
+        // unique_ptr will handle deletion when cleared
     }
     surface_data_.clear();
     
@@ -90,23 +92,24 @@ void XdgShellHandler::handle_new_toplevel(wl_listener* listener, void* data) {
     wlr_xdg_surface* xdg_surface = toplevel->base;
     wlr_surface* wlr_surf = xdg_surface->surface;
 
-    ToplevelData* td = new ToplevelData{};
-    td->handler = handler;
-    td->toplevel = toplevel;
+    auto td = std::make_unique<ToplevelData>();
+    ToplevelData* td_raw = td.get();
+    td_raw->handler = handler;
+    td_raw->toplevel = toplevel;
 
     ChromaWindow win;
     win.size = {800, 600};
     WindowId wid = handler->canvas_->add(std::move(win));
-    td->window_id = wid;
+    td_raw->window_id = wid;
 
     handler->id_to_toplevel_[wid] = toplevel;
     handler->toplevel_to_id_[toplevel] = wid;
-    handler->surface_data_[wlr_surf] = td;
+    handler->surface_data_[wlr_surf] = std::move(td);
 
     // --- Surface events (on wlr_surface) ---
 
-    td->surface_map.notify = [](wl_listener* l, void* /*data*/) {
-        ToplevelData* td = wl_container_of(l, td, surface_map);
+    td_raw->surface_map.notify = [](wl_listener* l, void* /*data*/) {
+        ToplevelData* td = wl_container_of(l, td_raw, surface_map);
         auto* win = td->handler->canvas_->get(td->window_id);
         if (win) win->mapped = true;
         // Wire into renderer
@@ -117,17 +120,17 @@ void XdgShellHandler::handle_new_toplevel(wl_listener* listener, void* data) {
                     td->window_id, win->title.c_str(), win->app_id.c_str(),
                     (int)win->size.x, (int)win->size.y);
     };
-    wl_signal_add(&wlr_surf->events.map, &td->surface_map);
+    wl_signal_add(&wlr_surf->events.map, &td_raw->surface_map);
 
-    td->surface_unmap.notify = [](wl_listener* l, void* /*data*/) {
-        ToplevelData* td = wl_container_of(l, td, surface_unmap);
+    td_raw->surface_unmap.notify = [](wl_listener* l, void* /*data*/) {
+        ToplevelData* td = wl_container_of(l, td_raw, surface_unmap);
         auto* win = td->handler->canvas_->get(td->window_id);
         if (win) win->mapped = false;
     };
-    wl_signal_add(&wlr_surf->events.unmap, &td->surface_unmap);
+    wl_signal_add(&wlr_surf->events.unmap, &td_raw->surface_unmap);
 
-    td->surface_commit.notify = [](wl_listener* l, void* /*data*/) {
-        ToplevelData* td = wl_container_of(l, td, surface_commit);
+    td_raw->surface_commit.notify = [](wl_listener* l, void* /*data*/) {
+        ToplevelData* td = wl_container_of(l, td_raw, surface_commit);
         auto* win = td->handler->canvas_->get(td->window_id);
         wlr_xdg_surface* xdg = td->toplevel->base;
         wlr_xdg_toplevel* toplevel = td->toplevel;
@@ -145,52 +148,52 @@ void XdgShellHandler::handle_new_toplevel(wl_listener* listener, void* data) {
         // size it's rendering at, which may lag behind our desired size during
         // interactive resize.
     };
-    wl_signal_add(&wlr_surf->events.commit, &td->surface_commit);
+    wl_signal_add(&wlr_surf->events.commit, &td_raw->surface_commit);
 
-    td->surface_destroy.notify = [](wl_listener* l, void* /*data*/) {
-        ToplevelData* td = wl_container_of(l, td, surface_destroy);
+    td_raw->surface_destroy.notify = [](wl_listener* l, void* /*data*/) {
+        ToplevelData* td = wl_container_of(l, td_raw, surface_destroy);
         td->handler->on_destroy(td);
     };
-    wl_signal_add(&wlr_surf->events.destroy, &td->surface_destroy);
+    wl_signal_add(&wlr_surf->events.destroy, &td_raw->surface_destroy);
 
     // --- Toplevel events ---
 
-    td->toplevel_destroy.notify = [](wl_listener* l, void* /*data*/) {
-        ToplevelData* td = wl_container_of(l, td, toplevel_destroy);
+    td_raw->toplevel_destroy.notify = [](wl_listener* l, void* /*data*/) {
+        ToplevelData* td = wl_container_of(l, td_raw, toplevel_destroy);
         td->handler->on_destroy(td);
     };
-    wl_signal_add(&toplevel->events.destroy, &td->toplevel_destroy);
+    wl_signal_add(&toplevel->events.destroy, &td_raw->toplevel_destroy);
 
-    td->set_title.notify = [](wl_listener* l, void* /*data*/) {
-        ToplevelData* td = wl_container_of(l, td, set_title);
+    td_raw->set_title.notify = [](wl_listener* l, void* /*data*/) {
+        ToplevelData* td = wl_container_of(l, td_raw, set_title);
         auto* win = td->handler->canvas_->get(td->window_id);
         if (win && td->toplevel->title)
             win->title = td->toplevel->title;
     };
-    wl_signal_add(&toplevel->events.set_title, &td->set_title);
+    wl_signal_add(&toplevel->events.set_title, &td_raw->set_title);
 
-    td->set_app_id.notify = [](wl_listener* l, void* /*data*/) {
-        ToplevelData* td = wl_container_of(l, td, set_app_id);
+    td_raw->set_app_id.notify = [](wl_listener* l, void* /*data*/) {
+        ToplevelData* td = wl_container_of(l, td_raw, set_app_id);
         auto* win = td->handler->canvas_->get(td->window_id);
         if (win && td->toplevel->app_id)
             win->app_id = td->toplevel->app_id;
     };
-    wl_signal_add(&toplevel->events.set_app_id, &td->set_app_id);
+    wl_signal_add(&toplevel->events.set_app_id, &td_raw->set_app_id);
 
-    td->request_move.notify = [](wl_listener* l, void* /*data*/) {
-        ToplevelData* td = wl_container_of(l, td, request_move);
+    td_raw->request_move.notify = [](wl_listener* l, void* /*data*/) {
+        ToplevelData* td = wl_container_of(l, td_raw, request_move);
         std::printf("[chroma] Client requested move (ignored)\n");
         (void)td;
     };
-    wl_signal_add(&toplevel->events.request_move, &td->request_move);
+    wl_signal_add(&toplevel->events.request_move, &td_raw->request_move);
 
-    td->request_resize.notify = [](wl_listener* l, void* data) {
-        ToplevelData* td = wl_container_of(l, td, request_resize);
+    td_raw->request_resize.notify = [](wl_listener* l, void* data) {
+        ToplevelData* td = wl_container_of(l, td_raw, request_resize);
         wlr_xdg_toplevel_resize_event* evt = static_cast<wlr_xdg_toplevel_resize_event*>(data);
         std::printf("[chroma] Client requested resize edges=%u (ignored)\n", evt->edges);
         (void)td;
     };
-    wl_signal_add(&toplevel->events.request_resize, &td->request_resize);
+    wl_signal_add(&toplevel->events.request_resize, &td_raw->request_resize);
 
     std::printf("[chroma] New toplevel: window %lu\n", wid);
 
@@ -214,6 +217,8 @@ void XdgShellHandler::handle_new_popup(wl_listener* listener, void* data) {
 
 void XdgShellHandler::on_destroy(ToplevelData* td) {
     if (!td) return;
+    if (td->destroyed_) return;  // guard against double-destroy
+    td->destroyed_ = true;
     WindowId wid = td->window_id;
 
     // Remove listeners
@@ -236,7 +241,7 @@ void XdgShellHandler::on_destroy(ToplevelData* td) {
     // Remove from domain
     canvas_->remove(wid);
 
-    delete td;
+    // unique_ptr in surface_data_ handles deletion after erase
     std::printf("[chroma] Window %lu destroyed\n", wid);
 
     // Wire into renderer

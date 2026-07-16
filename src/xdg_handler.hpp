@@ -3,6 +3,7 @@
 #include "server.hpp"
 #include "canvas.hpp"
 #include <functional>
+#include <memory>
 #include <unordered_map>
 
 namespace chroma {
@@ -34,7 +35,7 @@ private:
 
     std::unordered_map<WindowId, wlr_xdg_toplevel*> id_to_toplevel_;
     std::unordered_map<wlr_xdg_toplevel*, WindowId> toplevel_to_id_;
-    std::unordered_map<wlr_surface*, ToplevelData*> surface_data_;
+    std::unordered_map<wlr_surface*, std::unique_ptr<ToplevelData>> surface_data_;
 
     wl_listener on_new_toplevel_;
     wl_listener on_new_popup_;

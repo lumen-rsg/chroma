@@ -7,6 +7,13 @@ namespace chroma {
 // Global pointer for signal handling
 static ChromaApp* g_app = nullptr;
 
+static void signal_handler(int sig) {
+    if (g_app) {
+        std::fprintf(stderr, "[chroma] Received signal %d, shutting down.\n", sig);
+        g_app->quit();
+    }
+}
+
 ChromaApp::ChromaApp()
     : xdg_handler_(&server_, &canvas_)
     , renderer_(&server_, &canvas_, &xdg_handler_, &stacks_)
@@ -26,6 +33,10 @@ ChromaApp::~ChromaApp() {
 
 bool ChromaApp::init() {
     std::printf("[chroma] Initializing Chroma WM...\n");
+    
+    // Register signal handlers for graceful shutdown
+    signal(SIGTERM, signal_handler);
+    signal(SIGINT, signal_handler);
 
     if (!server_.init()) {
         std::fprintf(stderr, "[chroma] Failed to initialize server\n");
@@ -106,6 +117,7 @@ void ChromaApp::on_new_window(WindowId id, wlr_surface* surface) {
 }
 
 void ChromaApp::on_window_destroyed(WindowId id) {
+    focus_.remove(id);
     renderer_.on_window_removed(id);
 }
 
