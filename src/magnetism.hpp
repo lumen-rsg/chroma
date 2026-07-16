@@ -15,8 +15,14 @@ class MagnetismEngine {
 public:
     struct Config {
         float snap_distance{config::SNAP_DISTANCE};       // pixels
-        float attraction_strength{config::ATTRACTION_STR}; // 0–1
+        float attraction_strength{config::ATTRACTION_STR}; // 0–1 (scaled by attraction_scale)
         float grid_size{config::GRID_SIZE};               // snap grid
+        /// Scales attraction_strength into pixel-force range.
+        /// With the default scale (10000) and strength (0.1), the force at
+        /// distance=100 px is 0.1 * 10000 / 10000 = 0.1 px/call.
+        float attraction_scale{10000.0f};
+        /// Maximum displacement applied to a group member in one call.
+        float max_attraction_force{50.0f};
     };
 
     Config config;

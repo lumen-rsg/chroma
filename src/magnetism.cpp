@@ -58,14 +58,22 @@ void MagnetismEngine::attract_group(Canvas& canvas, WindowId moved_id) {
         auto* other = canvas.get(other_id);
         if (!other) continue;
 
-        // Gravitational pull: force diminishes with distance squared
+        // Gravitational attraction between group members.
+        //
+        // Force diminishes with the square of the distance so that nearby
+        // windows pull harder than distant ones.  The attraction_scale
+        // constant maps the 0–1 config value into a usable pixel range.
+        //
+        // Example: at 100 px distance with strength=0.1 and scale=10000,
+        //          force = 0.1 * 10000 / (100*100) = 0.1 px/call.
         Vec2 other_center = other->center();
         Vec2 dir = mover_center - other_center;
         float dist = dir.length();
         if (dist < 1.0f) continue;
 
-        float force = config.attraction_strength / (dist * dist) * 10000.0f;
-        force = std::min(force, 50.0f); // cap the pull per frame
+        float force = config.attraction_strength * config.attraction_scale
+                      / (dist * dist);
+        force = std::min(force, config.max_attraction_force);
 
         Vec2 displacement = dir.normalized() * force;
         canvas.move_window(other_id, other->canvas_pos + displacement);
