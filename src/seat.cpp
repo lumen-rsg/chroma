@@ -251,7 +251,29 @@ void SeatManager::handle_keyboard_key(wl_listener* listener, void* data) {
             case Action::GROUP_HERE: {
                 WindowId f = self->focus_->current();
                 if (f != INVALID_WINDOW)
-                    self->magnetism_->group_nearby(*self->canvas_, f, 300.0f);
+                    self->magnetism_->group_nearby(*self->canvas_, f, config::GROUP_RADIUS);
+                break;
+            }
+            case Action::JUMP_NEXT_GROUP:
+                self->canvas_->cycle_next_group(screen_size);
+                break;
+            case Action::JUMP_PREV_GROUP:
+                self->canvas_->cycle_prev_group(screen_size);
+                break;
+            case Action::JUMP_GROUP_1:
+            case Action::JUMP_GROUP_2:
+            case Action::JUMP_GROUP_3:
+            case Action::JUMP_GROUP_4:
+            case Action::JUMP_GROUP_5:
+            case Action::JUMP_GROUP_6:
+            case Action::JUMP_GROUP_7:
+            case Action::JUMP_GROUP_8:
+            case Action::JUMP_GROUP_9: {
+                int idx = static_cast<int>(action)
+                        - static_cast<int>(Action::JUMP_GROUP_1) + 1;
+                GroupId gid = self->canvas_->group_at_index(idx);
+                if (gid != NO_GROUP)
+                    self->canvas_->jump_to_group(gid, screen_size);
                 break;
             }
             case Action::FOCUS_NEXT:
@@ -368,25 +390,21 @@ void SeatManager::handle_cursor_motion(wl_listener* listener, void* data) {
             auto* win = self->canvas_->get(self->dragged_window_);
             Vec2 new_pos = win->canvas_pos + delta;
 
-            // Collision detection: if Super is NOT held, prevent overlap
-            bool super_held = self->input_router_->super_held();
-            if (!super_held) {
+            // Collision: jiggle on overlap but don't block movement.
+            // Windows can freely overlap — Super key gates drag-to-stack instead.
+            {
                 Rect new_rect{new_pos, win->size};
-                Vec2 total_push{0, 0};
+                bool any_overlap = false;
                 for (const auto& [other_id, other] : self->canvas_->all_windows()) {
                     if (other_id == self->dragged_window_) continue;
                     if (!other.mapped) continue;
-                    // Allow overlap within the same stack (stacked cards share space)
                     if (win->stack != NO_STACK && win->stack == other.stack) continue;
                     if (new_rect.overlaps(other.canvas_rect())) {
-                        Vec2 push = new_rect.separation_vector(other.canvas_rect());
-                        total_push = total_push + push;
-                        new_rect.pos = new_rect.pos + push;
+                        any_overlap = true;
+                        break;
                     }
                 }
-                if (total_push.x != 0.0f || total_push.y != 0.0f) {
-                    new_pos = new_rect.pos;
-                    // Trigger a visual jiggle away from the collision direction
+                if (any_overlap) {
                     self->renderer_->trigger_jiggle(self->dragged_window_,
                         delta * -1.0f);
                 }
@@ -426,23 +444,21 @@ void SeatManager::handle_cursor_motion_absolute(wl_listener* listener, void* dat
             auto* win = self->canvas_->get(self->dragged_window_);
             Vec2 new_pos = win->canvas_pos + delta;
 
-            // Collision detection: if Super is NOT held, prevent overlap
-            bool super_held = self->input_router_->super_held();
-            if (!super_held) {
+            // Collision: jiggle on overlap but don't block movement.
+            // Windows can freely overlap — Super key gates drag-to-stack instead.
+            {
                 Rect new_rect{new_pos, win->size};
-                Vec2 total_push{0, 0};
+                bool any_overlap = false;
                 for (const auto& [other_id, other] : self->canvas_->all_windows()) {
                     if (other_id == self->dragged_window_) continue;
                     if (!other.mapped) continue;
                     if (win->stack != NO_STACK && win->stack == other.stack) continue;
                     if (new_rect.overlaps(other.canvas_rect())) {
-                        Vec2 push = new_rect.separation_vector(other.canvas_rect());
-                        total_push = total_push + push;
-                        new_rect.pos = new_rect.pos + push;
+                        any_overlap = true;
+                        break;
                     }
                 }
-                if (total_push.x != 0.0f || total_push.y != 0.0f) {
-                    new_pos = new_rect.pos;
+                if (any_overlap) {
                     self->renderer_->trigger_jiggle(self->dragged_window_,
                         delta * -1.0f * self->canvas_->zoom);
                 }
@@ -674,15 +690,15 @@ void SeatManager::apply_resize(Vec2 delta) {
     if (r.size.x < 100) { r.size.x = 100; if (edges & WLR_EDGE_LEFT) r.pos.x = win->canvas_rect().right() - 100; }
     if (r.size.y < 100) { r.size.y = 100; if (edges & WLR_EDGE_TOP) r.pos.y = win->canvas_rect().bottom() - 100; }
 
-    // Prevent resize from causing overlap with other windows.
-    // Push the resized window away from any overlapping window.
+    // Soft collision: jiggle when resizing into another window,
+    // but allow the resize to proceed (windows can overlap freely).
     for (const auto& [other_id, other] : canvas_->all_windows()) {
         if (other_id == resized_window_) continue;
         if (!other.mapped) continue;
         if (win->stack != NO_STACK && win->stack == other.stack) continue;
         if (r.overlaps(other.canvas_rect())) {
-            Vec2 push = r.separation_vector(other.canvas_rect());
-            r.pos = r.pos + push;
+            // Visual feedback only — don't block the resize
+            renderer_->trigger_jiggle(other_id, {0, 0}); // subtle jiggle on the other window
         }
     }
 

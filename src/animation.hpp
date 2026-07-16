@@ -139,4 +139,55 @@ struct JiggleState {
     }
 };
 
+// ============================================================================
+// Viewport animation for smooth group-jump transitions
+// ============================================================================
+
+/// Animates the viewport (center + zoom) from a start state to a target state.
+/// Uses ease-in-out cubic for a smooth pan-and-zoom feel.
+struct ViewportAnimation {
+    AnimationState state;
+    Vec2 start_center{0, 0};
+    Vec2 target_center{0, 0};
+    float start_zoom{1.0f};
+    float target_zoom{1.0f};
+
+    /// Begin animating from `from_center`/`from_zoom` toward `to_center`/`to_zoom`.
+    void start(Vec2 from_center, float from_zoom,
+               Vec2 to_center, float to_zoom, float duration) {
+        start_center = from_center;
+        target_center = to_center;
+        start_zoom = from_zoom;
+        target_zoom = to_zoom;
+        state.start(duration);
+    }
+
+    /// Advance the animation by dt seconds. Returns true while still active.
+    bool tick(float dt) {
+        return state.tick(dt);
+    }
+
+    /// Current interpolated viewport center.
+    Vec2 current_center() const {
+        float t = ease_in_out_cubic(state.progress());
+        return chroma::lerp(start_center, target_center, t);
+    }
+
+    /// Current interpolated zoom level.
+    float current_zoom() const {
+        float t = ease_in_out_cubic(state.progress());
+        return chroma::lerp(start_zoom, target_zoom, t);
+    }
+
+    /// True while the animation is actively running.
+    bool active() const {
+        return state.active;
+    }
+
+    /// Stop the animation immediately.
+    void stop() {
+        state.stop();
+    }
+};
+
 } // namespace chroma

@@ -121,6 +121,8 @@ bool ChromaApp::init() {
     std::printf("[chroma]   Super+S       = cycle stack\n");
     std::printf("[chroma]   Super+Shift+S = stack window\n");
     std::printf("[chroma]   Super+G       = group nearby\n");
+    std::printf("[chroma]   Super+[/]     = jump to prev/next group\n");
+    std::printf("[chroma]   Super+1..9    = jump to group by number\n");
     std::printf("[chroma]   Super+Shift+E = quit\n");
 
     return true;

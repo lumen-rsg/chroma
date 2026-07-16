@@ -127,7 +127,8 @@ GroupId MagnetismEngine::group_nearby(Canvas& canvas, WindowId center_id, float 
     // Add nearby windows
     for (const auto& [id, w] : canvas.all_windows()) {
         if (id == center_id) continue;
-        if (w.stack != NO_STACK) continue; // skip stacked windows
+        if (!w.mapped) continue;            // skip unmapped (not yet visible)
+        if (w.stack != NO_STACK) continue;   // skip stacked windows
         if (distance_squared(center_pos, w.center()) <= r2) {
             canvas.add_to_group(id, gid);
         }
@@ -141,9 +142,13 @@ GroupId MagnetismEngine::group_nearby(Canvas& canvas, WindowId center_id, float 
         if (prev_group != NO_GROUP) {
             canvas.add_to_group(center_id, prev_group);
         }
+        std::fprintf(stderr, "[chroma] Group: no windows within %.0f px of window %lu\n",
+                     radius, center_id);
         return NO_GROUP;
     }
 
+    std::fprintf(stderr, "[chroma] Group %lu created ('%s'): %zu windows within %.0f px\n",
+                 gid, group ? group->name.c_str() : "?", group ? group->size() : 0, radius);
     return gid;
 }
 

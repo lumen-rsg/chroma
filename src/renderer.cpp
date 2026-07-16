@@ -395,6 +395,9 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
     // Tick all animations
     tick_animations(dt);
 
+    // Tick viewport animation (group jumps)
+    canvas_->tick_viewport_animation(dt);
+
     bool any_animating = false;
 
     // Render all windows: mapped ones + unmapped ones with active close animation
@@ -531,6 +534,9 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
     // windows in the Canvas render on top visually.
     sync_scene_z_order();
 
+    // Update group directional indicators (HUD arrows at screen edges)
+    update_group_indicators(screen_size);
+
     // Commit the scene to the output
     wlr_scene_output_commit(scene_output, nullptr);
     
@@ -539,8 +545,10 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
     
     // Schedule next frame if:
     //   (a) wlr_scene has pending damage, OR
-    //   (b) any window has an active animation
-    if (wlr_scene_output_needs_frame(scene_output) || any_animating || has_active_animations()) {
+    //   (b) any window has an active animation, OR
+    //   (c) viewport is animating (group jump)
+    if (wlr_scene_output_needs_frame(scene_output) || any_animating ||
+        has_active_animations() || canvas_->viewport_animating()) {
         wlr_output_schedule_frame(output);
     }
 }
@@ -548,6 +556,131 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
 WindowSceneData* SceneRenderer::get_scene_data(WindowId id) {
     auto it = scene_data_.find(id);
     return it != scene_data_.end() ? &it->second : nullptr;
+}
+
+// ============================================================================
+// Group Indicator HUD
+// ============================================================================
+
+void SceneRenderer::group_color(size_t order_index, float alpha, float out_color[4]) {
+    // Deterministic palette: 6 distinct hues, cycling for >6 groups
+    static const float hues[6][3] = {
+        {0.95f, 0.45f, 0.20f},  // warm orange
+        {0.25f, 0.65f, 0.95f},  // sky blue
+        {0.40f, 0.80f, 0.35f},  // green
+        {0.85f, 0.35f, 0.75f},  // magenta
+        {0.95f, 0.85f, 0.15f},  // yellow
+        {0.30f, 0.75f, 0.80f},  // teal
+    };
+    const float* h = hues[order_index % 6];
+    out_color[0] = h[0];
+    out_color[1] = h[1];
+    out_color[2] = h[2];
+    out_color[3] = std::clamp(alpha, 0.0f, 1.0f);
+}
+
+void SceneRenderer::ensure_indicator_nodes(size_t count) {
+    wlr_scene_tree* root = &server_->scene->tree;
+
+    while (indicator_nodes_.size() < count) {
+        IndicatorNode node;
+        node.group_id = NO_GROUP;
+        float color[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+        for (int i = 0; i < 3; i++) {
+            node.pieces[i] = wlr_scene_rect_create(root, 0, 0, color);
+        }
+        indicator_nodes_.push_back(node);
+    }
+
+    while (indicator_nodes_.size() > count) {
+        auto& node = indicator_nodes_.back();
+        for (int i = 0; i < 3; i++) {
+            if (node.pieces[i]) {
+                wlr_scene_node_destroy(&node.pieces[i]->node);
+            }
+        }
+        indicator_nodes_.pop_back();
+    }
+}
+
+void SceneRenderer::update_group_indicators(Vec2 screen_size) {
+    auto indicators = canvas_->compute_indicators(screen_size);
+
+    ensure_indicator_nodes(indicators.size());
+
+    for (size_t i = 0; i < indicators.size(); i++) {
+        const auto& ind = indicators[i];
+        auto& node = indicator_nodes_[i];
+        node.group_id = ind.group_id;
+
+        // Find group's order index for color
+        const auto& order = canvas_->group_order();
+        size_t order_idx = 0;
+        for (size_t j = 0; j < order.size(); j++) {
+            if (order[j] == ind.group_id) {
+                order_idx = j;
+                break;
+            }
+        }
+
+        float base_color[4];
+        group_color(order_idx, ind.opacity, base_color);
+
+        float s = config::INDICATOR_SIZE;
+        Vec2 pos = ind.screen_edge_pos;
+        Vec2 dir = ind.direction;
+
+        // Build a chevron/triangle pointing toward the group.
+        // The direction vector points from viewport center to the group.
+        // At the screen edge, we draw an arrowhead pointing AWAY from the edge
+        // (i.e., in the same direction as `dir`).
+        //
+        // Three rects form the chevron:
+        //   piece[0] = center spike (long, thin, along dir)
+        //   piece[1] = left wing   (angled 45° left of dir)
+        //   piece[2] = right wing  (angled 45° right of dir)
+        //
+        // We use thin rects (2px wide) rotated via width/height orientation.
+        // Since wlr_scene_rect is axis-aligned, we simulate rotation by
+        // placing short rects at calculated offsets.
+
+        // Perpendicular vector for the chevron spread
+        Vec2 perp{-dir.y, dir.x};
+
+        // Center spike: a rect along `dir`
+        {
+            int cx = static_cast<int>(pos.x);
+            int cy = static_cast<int>(pos.y);
+            // Draw as a diamond/dot at the edge position
+            wlr_scene_node_set_position(&node.pieces[0]->node, cx - 3, cy - 3);
+            wlr_scene_rect_set_size(node.pieces[0], 7, 7);
+            wlr_scene_rect_set_color(node.pieces[0], base_color);
+        }
+
+        // Left wing: offset perpendicular, then forward
+        {
+            Vec2 wing_pos = pos + perp * s * 0.5f + dir * s * 0.4f;
+            int wx = static_cast<int>(wing_pos.x);
+            int wy = static_cast<int>(wing_pos.y);
+            wlr_scene_node_set_position(&node.pieces[1]->node, wx - 2, wy - 2);
+            wlr_scene_rect_set_size(node.pieces[1], 5, 5);
+            float wing_color[4];
+            group_color(order_idx, ind.opacity * 0.75f, wing_color);
+            wlr_scene_rect_set_color(node.pieces[1], wing_color);
+        }
+
+        // Right wing: opposite perpendicular, then forward
+        {
+            Vec2 wing_pos = pos - perp * s * 0.5f + dir * s * 0.4f;
+            int wx = static_cast<int>(wing_pos.x);
+            int wy = static_cast<int>(wing_pos.y);
+            wlr_scene_node_set_position(&node.pieces[2]->node, wx - 2, wy - 2);
+            wlr_scene_rect_set_size(node.pieces[2], 5, 5);
+            float wing_color[4];
+            group_color(order_idx, ind.opacity * 0.75f, wing_color);
+            wlr_scene_rect_set_color(node.pieces[2], wing_color);
+        }
+    }
 }
 
 } // namespace chroma

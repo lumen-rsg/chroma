@@ -10,6 +10,7 @@
 
 #include "types.hpp"
 #include "window.hpp"
+#include "animation.hpp"
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -32,6 +33,20 @@ struct WindowGroup {
     /// True if this group is empty.
     bool empty() const { return windows.empty(); }
     size_t size() const { return windows.size(); }
+};
+
+// ============================================================================
+// GroupIndicator — HUD element pointing toward an off-viewport group
+// ============================================================================
+
+/// Describes a directional indicator to render at the screen edge,
+/// pointing toward a group that is not fully visible in the viewport.
+struct GroupIndicator {
+    GroupId group_id;
+    std::string name;
+    Vec2 screen_edge_pos;   ///< Screen-space position on the edge for arrow placement
+    Vec2 direction;          ///< Normalized direction from viewport center toward the group
+    float opacity{0.0f};    ///< 0→1 fade based on distance (1 = fully opaque)
 };
 
 // ============================================================================
@@ -146,6 +161,46 @@ public:
     const WindowGroup* get_group(GroupId id) const;
     const std::unordered_map<GroupId, WindowGroup>& all_groups() const { return groups_; }
 
+    // --- Group navigation ---
+
+    /// Ordered list of group IDs in creation order (for deterministic cycling).
+    const std::vector<GroupId>& group_order() const { return group_order_; }
+
+    /// The group the viewport is currently targeting (via jump_to_group).
+    GroupId active_group() const { return active_group_; }
+
+    /// Number of groups currently on the canvas.
+    size_t group_count() const { return group_order_.size(); }
+
+    /// Get the group at a 1-based index in the order list (for Super+1..9).
+    /// Returns NO_GROUP if the index is out of range.
+    GroupId group_at_index(int index) const;
+
+    /// Animate the viewport to center on a group's centroid with smart zoom.
+    void jump_to_group(GroupId id, Vec2 screen_size);
+
+    /// Jump to the next group in creation order (wraps around).
+    GroupId cycle_next_group(Vec2 screen_size);
+
+    /// Jump to the previous group in creation order (wraps around).
+    GroupId cycle_prev_group(Vec2 screen_size);
+
+    // --- Viewport animation ---
+
+    /// Advance the viewport animation by dt seconds.
+    /// Returns true while the animation is still active.
+    bool tick_viewport_animation(float dt);
+
+    /// True while the viewport is animating toward a target.
+    bool viewport_animating() const;
+
+    // --- Directional indicators ---
+
+    /// Compute HUD indicators for groups whose centroids are outside the
+    /// current viewport. Each indicator describes where on the screen edge
+    /// to draw an arrow pointing toward that group.
+    std::vector<GroupIndicator> compute_indicators(Vec2 screen_size) const;
+
     // --- ID generation ---
 
     WindowId next_window_id();
@@ -165,13 +220,24 @@ private:
     /// Maintained in sync with windows_; window_at iterates this in reverse.
     std::vector<WindowId> z_order_;
 
+    /// Ordered group list in creation order for deterministic cycling.
+    std::vector<GroupId> group_order_;
+
+    /// The group currently targeted by the viewport (last jump target).
+    GroupId active_group_{NO_GROUP};
+
+    /// Viewport animation state for smooth group-jump transitions.
+    ViewportAnimation viewport_anim_;
+
     WindowId next_wid_{1};
     GroupId  next_gid_{1};
     StackId  next_sid_{1};
 
-    /// Default-placement cursor: each new window cascades diagonally.
-    Vec2 next_default_pos_{-400, -300};
-    static constexpr Vec2 default_offset_{50, 50};
+    /// Default-placement cursor: each new window cascades diagonally
+    /// relative to the current viewport center (so windows appear where
+    /// the user is looking, not at the canvas origin).
+    Vec2 next_default_rel_pos_{-700, -500};
+    static constexpr Vec2 default_offset_{100, 80};
 };
 
 } // namespace chroma

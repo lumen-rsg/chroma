@@ -196,6 +196,7 @@ namespace config {
     constexpr float GRID_SIZE      = 50.0f;    // snap grid resolution
     constexpr float STACK_OFFSET   = 8.0f;     // visual offset per card in a stack
     constexpr float ATTRACTION_STR = 0.1f;     // magnetism pull strength (0-1)
+    constexpr float GROUP_RADIUS   = 800.0f;   // Super+G group-nearby search radius
 
     // Animation durations (seconds)
     constexpr float ANIM_MOVE_DURATION   = 0.15f;  // smooth window move
@@ -213,6 +214,15 @@ namespace config {
     constexpr float SHADOW_OFFSET_X = 2.0f;   // base horizontal offset per layer (directional)
     constexpr float SHADOW_OFFSET_Y = 2.0f;   // base vertical offset per layer
     constexpr float SHADOW_GROW     = 4.0f;   // extra spread per side, per layer
+
+    // Viewport animation
+    constexpr float ANIM_VIEWPORT_DURATION = 0.35f;  // group-jump pan+zoom duration
+
+    // Group directional indicators
+    constexpr float INDICATOR_MARGIN      = 40.0f;   // px from screen edge
+    constexpr float INDICATOR_SIZE        = 20.0f;   // arrow chevron size in screen px
+    constexpr float INDICATOR_FADE_START  = 800.0f;  // canvas distance for fade-in
+    constexpr float INDICATOR_MIN_OPACITY = 0.15f;   // minimum opacity at extreme distances
 }
 
 } // namespace chroma

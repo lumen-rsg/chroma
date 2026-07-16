@@ -110,6 +110,30 @@ Action InputRouter::on_key(Canvas& canvas, FocusTracker& focus, StackManager& st
         return Action::NONE;
     }
 
+    // --- Group navigation (jump between groups) ---
+    if (super && keysym == Key::LEFT_BRACKET) {
+        return Action::JUMP_PREV_GROUP;
+    }
+    if (super && keysym == Key::RIGHT_BRACKET) {
+        return Action::JUMP_NEXT_GROUP;
+    }
+    // Super+1..9 → direct jump to group by index
+    if (super && !shift && keysym >= Key::NUM_1 && keysym <= Key::NUM_9) {
+        int group_idx = static_cast<int>(keysym - Key::NUM_1); // 0-based
+        switch (group_idx) {
+            case 0: return Action::JUMP_GROUP_1;
+            case 1: return Action::JUMP_GROUP_2;
+            case 2: return Action::JUMP_GROUP_3;
+            case 3: return Action::JUMP_GROUP_4;
+            case 4: return Action::JUMP_GROUP_5;
+            case 5: return Action::JUMP_GROUP_6;
+            case 6: return Action::JUMP_GROUP_7;
+            case 7: return Action::JUMP_GROUP_8;
+            case 8: return Action::JUMP_GROUP_9;
+            default: break;
+        }
+    }
+
     return Action::NONE;
 }
 

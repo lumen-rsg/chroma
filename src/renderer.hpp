@@ -133,6 +133,27 @@ private:
     /// Synchronise wlr_scene node order with the Canvas Z-order so that
     /// topmost windows in the domain model render on top.
     void sync_scene_z_order();
+
+    /// --- Group indicator HUD ---
+
+    /// Per-indicator scene nodes: three rects forming a directional chevron.
+    struct IndicatorNode {
+        GroupId group_id;
+        wlr_scene_rect* pieces[3];  ///< 3 rects: center spike + two wings
+    };
+
+    /// Pool of indicator scene nodes.
+    std::vector<IndicatorNode> indicator_nodes_;
+
+    /// Ensure we have exactly `count` indicator nodes, creating or
+    /// destroying wlr_scene_rect children as needed.
+    void ensure_indicator_nodes(size_t count);
+
+    /// Update indicator positions, orientations, and opacities.
+    void update_group_indicators(Vec2 screen_size);
+
+    /// Color for a group based on its position in the order (deterministic palette).
+    static void group_color(size_t order_index, float alpha, float out_color[4]);
 };
 
 } // namespace chroma

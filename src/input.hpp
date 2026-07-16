@@ -65,6 +65,9 @@ namespace Key {
 
     constexpr uint32_t NUM_1 = 0x0031;  // 1–9
     constexpr uint32_t NUM_9 = 0x0039;
+
+    constexpr uint32_t LEFT_BRACKET  = 0x005B; // [
+    constexpr uint32_t RIGHT_BRACKET = 0x005D; // ]
 }
 
 /// Action the input router can emit — used for testing / extensibility.
@@ -82,6 +85,17 @@ enum class Action {
     STACK_WINDOW,    ///< Add focused window to a stack
     UNSTACK_WINDOW,  ///< Remove focused window from its stack
     GROUP_HERE,      ///< Create a magnetic group from nearby windows
+    JUMP_NEXT_GROUP, ///< Jump viewport to the next group (by creation order)
+    JUMP_PREV_GROUP, ///< Jump viewport to the previous group
+    JUMP_GROUP_1,    ///< Jump directly to group 1
+    JUMP_GROUP_2,    ///< Jump directly to group 2
+    JUMP_GROUP_3,    ///< Jump directly to group 3
+    JUMP_GROUP_4,    ///< Jump directly to group 4
+    JUMP_GROUP_5,    ///< Jump directly to group 5
+    JUMP_GROUP_6,    ///< Jump directly to group 6
+    JUMP_GROUP_7,    ///< Jump directly to group 7
+    JUMP_GROUP_8,    ///< Jump directly to group 8
+    JUMP_GROUP_9,    ///< Jump directly to group 9
     QUIT,            ///< Terminate the compositor
 };
 
