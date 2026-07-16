@@ -87,6 +87,9 @@ public:
     /// Find the topmost window at `canvas_pos`. Returns INVALID_WINDOW if none.
     WindowId window_at(Vec2 canvas_pos) const;
 
+    /// Raise a window to the top of the Z-order.
+    void raise_to_top(WindowId id);
+
     // --- Focus ---
 
     void set_focus(WindowId id);
@@ -113,6 +116,10 @@ private:
     std::unordered_map<WindowId, ChromaWindow> windows_;
     std::unordered_map<GroupId, WindowGroup> groups_;
     WindowId focused_{INVALID_WINDOW};
+
+    /// Z-order list: index 0 = bottom, back() = topmost.
+    /// Maintained in sync with windows_; window_at iterates this in reverse.
+    std::vector<WindowId> z_order_;
 
     WindowId next_wid_{1};
     GroupId  next_gid_{1};

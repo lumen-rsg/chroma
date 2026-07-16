@@ -79,6 +79,7 @@ WindowId Canvas::add(ChromaWindow window) {
         window.id = id;
     }
     windows_[id] = std::move(window);
+    z_order_.push_back(id);  // new windows go on top
     return id;
 }
 
@@ -90,6 +91,12 @@ ChromaWindow Canvas::remove(WindowId id) {
     }
     ChromaWindow w = std::move(it->second);
     windows_.erase(it);
+
+    // Remove from z_order
+    auto z_it = std::find(z_order_.begin(), z_order_.end(), id);
+    if (z_it != z_order_.end()) {
+        z_order_.erase(z_it);
+    }
 
     // Remove from group
     if (w.group != NO_GROUP) {
@@ -143,16 +150,18 @@ std::vector<WindowId> Canvas::visible_windows(Vec2 screen_size) const {
 }
 
 WindowId Canvas::window_at(Vec2 canvas_pos) const {
-    // For now, just iterate all windows (last inserted = topmost conceptually).
-    // Later we'll maintain a proper Z-order list.
-    WindowId result = INVALID_WINDOW;
-    for (const auto& [id, w] : windows_) {
+    // Iterate z_order from topmost (back) to bottom (front).
+    // First window that contains the point wins.
+    for (auto it = z_order_.rbegin(); it != z_order_.rend(); ++it) {
+        auto win_it = windows_.find(*it);
+        if (win_it == windows_.end()) continue;
+        const auto& w = win_it->second;
         if (!w.mapped) continue;
         if (w.canvas_rect().contains(canvas_pos)) {
-            result = id; // last match wins (topmost)
+            return *it;
         }
     }
-    return result;
+    return INVALID_WINDOW;
 }
 
 // ============================================================================
@@ -168,7 +177,16 @@ void Canvas::set_focus(WindowId id) {
     focused_ = id;
     if (auto* w = get(id)) {
         w->focused = true;
+        raise_to_top(id);
     }
+}
+
+void Canvas::raise_to_top(WindowId id) {
+    auto it = std::find(z_order_.begin(), z_order_.end(), id);
+    if (it != z_order_.end()) {
+        z_order_.erase(it);
+    }
+    z_order_.push_back(id);
 }
 
 // ============================================================================
