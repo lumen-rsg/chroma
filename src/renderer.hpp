@@ -21,8 +21,12 @@ struct WindowSceneData {
     wlr_scene_rect* bg_rect{nullptr};
     bool is_stacked{false};
     int stack_index{0};
-    bool was_focused{false};      // track to avoid flicker
-    Vec2 last_size{0, 0};         // track to avoid flicker
+
+    // Dirty tracking: skip scene node updates when nothing changed.
+    bool was_focused{false};
+    Vec2 last_screen_pos{-1, -1};    // last screen-space position (init to sentinel)
+    Vec2 last_screen_size{0, 0};     // last screen-space size
+    Vec2 last_stack_offset{-1, -1};  // last visual offset from card stacking
 };
 
 /// Reads Canvas domain state and updates the wlr_scene to match.

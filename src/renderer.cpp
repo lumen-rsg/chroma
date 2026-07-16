@@ -78,14 +78,6 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
         auto& data = it->second;
         Rect screen_rect = canvas_->canvas_to_screen(win.canvas_rect(), screen_size);
 
-        static int rd = 0;
-        if (rd < 5 && (screen_rect.w() != data.last_size.x || screen_rect.h() != data.last_size.y)) {
-            std::fprintf(stderr, "[chroma] Render resize: canvas=(%.0f,%.0f %.0fx%.0f) screen=(%.0f,%.0f %.0fx%.0f)\n",
-                win.canvas_pos.x, win.canvas_pos.y, win.size.x, win.size.y,
-                screen_rect.x(), screen_rect.y(), screen_rect.w(), screen_rect.h());
-            rd++;
-        }
-
         float offset_x = 0.0f;
         float offset_y = 0.0f;
 
@@ -103,19 +95,31 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
             }
         }
 
+        Vec2 cur_screen_pos{screen_rect.x(), screen_rect.y()};
+        Vec2 cur_screen_size{screen_rect.w(), screen_rect.h()};
+        Vec2 cur_offset{offset_x, offset_y};
+
+        // Dirty tracking: skip entire update if nothing changed since last frame
+        if (cur_screen_pos == data.last_screen_pos &&
+            cur_screen_size == data.last_screen_size &&
+            cur_offset == data.last_stack_offset &&
+            win.focused == data.was_focused) {
+            continue;
+        }
+
+        data.last_screen_pos = cur_screen_pos;
+        data.last_screen_size = cur_screen_size;
+        data.last_stack_offset = cur_offset;
+        data.was_focused = win.focused;
+
         wlr_scene_node_set_position(&data.tree->node,
             static_cast<int>(screen_rect.x() + offset_x),
             static_cast<int>(screen_rect.y() + offset_y));
 
         constexpr int BORDER_W = 4;  // border thickness in screen pixels
 
-        // Update border only when focus or size changes (avoids flicker)
-        if (data.bg_rect && (win.focused != data.was_focused || 
-            screen_rect.size.x != data.last_size.x || 
-            screen_rect.size.y != data.last_size.y)) {
-            data.was_focused = win.focused;
-            data.last_size = {screen_rect.size.x, screen_rect.size.y};
-            
+        // Update border color and size when focus or size changes
+        if (data.bg_rect) {
             float color[4];
             if (win.focused) {
                 color[0] = 0.35f; color[1] = 0.28f; color[2] = 0.55f; color[3] = 1.0f;
