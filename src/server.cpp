@@ -211,6 +211,20 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Output power management (DPMS, screen blanking)
+    output_power_mgr = wlr_output_power_manager_v1_create(display);
+    if (!output_power_mgr) {
+        std::fprintf(stderr, "Failed to create output-power-manager\n");
+        // non-fatal
+    }
+
+    // Input method (for on-screen keyboards, IME)
+    input_method_mgr = wlr_input_method_manager_v2_create(display);
+    if (!input_method_mgr) {
+        std::fprintf(stderr, "Failed to create input-method-manager\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);

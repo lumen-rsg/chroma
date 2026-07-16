@@ -50,6 +50,8 @@ extern "C" {
 #include <wlr/types/wlr_idle_inhibit_v1.h>
 #include <wlr/types/wlr_linux_dmabuf_v1.h>
 #include <wlr/types/wlr_drm_lease_v1.h>
+#include <wlr/types/wlr_output_power_management_v1.h>
+#include <wlr/types/wlr_input_method_v2.h>
 }
 
 namespace chroma {
@@ -73,6 +75,8 @@ public:
     wlr_layer_shell_v1* layer_shell{nullptr};
     wlr_foreign_toplevel_manager_v1* foreign_toplevel_mgr{nullptr};
     wlr_screencopy_manager_v1* screencopy_mgr{nullptr};
+    wlr_output_power_manager_v1* output_power_mgr{nullptr};
+    wlr_input_method_manager_v2* input_method_mgr{nullptr};
 
     wl_listener on_new_output;
     wl_listener on_new_input;
