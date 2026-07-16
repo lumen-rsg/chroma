@@ -181,6 +181,12 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Gamma control (for night light, color calibration)
+    if (!wlr_gamma_control_manager_v1_create(display)) {
+        std::fprintf(stderr, "Failed to create gamma-control-manager\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);
