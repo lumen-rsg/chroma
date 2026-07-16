@@ -28,6 +28,16 @@ void SceneRenderer::create_shadows(WindowSceneData& data, wlr_scene_tree* parent
     }
 }
 
+void SceneRenderer::create_borders(WindowSceneData& data, wlr_scene_tree* parent) {
+    // Default unfocused color, full alpha
+    float color[4] = {0.15f, 0.15f, 0.18f, 1.0f};
+    
+    data.border_top    = wlr_scene_rect_create(parent, 0, 0, color);
+    data.border_bottom = wlr_scene_rect_create(parent, 0, 0, color);
+    data.border_left   = wlr_scene_rect_create(parent, 0, 0, color);
+    data.border_right  = wlr_scene_rect_create(parent, 0, 0, color);
+}
+
 void SceneRenderer::update_shadows(WindowSceneData& data) {
     // Each shadow layer is offset progressively further and grows larger,
     // creating a soft, directional drop-shadow effect.
@@ -65,6 +75,47 @@ void SceneRenderer::update_shadows(WindowSceneData& data) {
     }
 }
 
+void SceneRenderer::update_borders(WindowSceneData& data, bool focused) {
+    constexpr int BW = 2;  // border thickness in screen pixels
+    
+    float color[4];
+    if (focused) {
+        color[0] = 0.38f; color[1] = 0.30f; color[2] = 0.60f; color[3] = 1.0f;
+    } else {
+        color[0] = 0.18f; color[1] = 0.18f; color[2] = 0.22f; color[3] = 1.0f;
+    }
+    
+    int w = static_cast<int>(data.visual_size.x);
+    int h = static_cast<int>(data.visual_size.y);
+    if (w < 1) w = 1;
+    if (h < 1) h = 1;
+    
+    // Top edge — sits above the window
+    if (data.border_top) {
+        wlr_scene_node_set_position(&data.border_top->node, 0, -BW);
+        wlr_scene_rect_set_size(data.border_top, w, BW);
+        wlr_scene_rect_set_color(data.border_top, color);
+    }
+    // Bottom edge — sits below the window
+    if (data.border_bottom) {
+        wlr_scene_node_set_position(&data.border_bottom->node, 0, h);
+        wlr_scene_rect_set_size(data.border_bottom, w, BW);
+        wlr_scene_rect_set_color(data.border_bottom, color);
+    }
+    // Left edge — sits to the left of the window
+    if (data.border_left) {
+        wlr_scene_node_set_position(&data.border_left->node, -BW, 0);
+        wlr_scene_rect_set_size(data.border_left, BW, h);
+        wlr_scene_rect_set_color(data.border_left, color);
+    }
+    // Right edge — sits to the right of the window
+    if (data.border_right) {
+        wlr_scene_node_set_position(&data.border_right->node, w, 0);
+        wlr_scene_rect_set_size(data.border_right, BW, h);
+        wlr_scene_rect_set_color(data.border_right, color);
+    }
+}
+
 // ============================================================================
 // Window lifecycle
 // ============================================================================
@@ -84,6 +135,10 @@ void SceneRenderer::on_window_added(WindowId id, wlr_surface* /*surface*/) {
 
     // Create shadows first (they go behind everything)
     create_shadows(data, tree);
+
+    // Create border outlines (positioned outside the window area,
+    // so they never overlap the surface buffer — no CSD bleed-through)
+    create_borders(data, tree);
 
     // Create background rect with unfocused default color.
     // Created after shadows so it renders on top of them naturally
@@ -344,6 +399,9 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
 
         // --- Update shadows ---
         update_shadows(data);
+
+        // --- Update border outlines (outside window area, no CSD conflict) ---
+        update_borders(data, win.focused);
 
         // --- Update border/background rect ---
         // The bg_rect serves as a fade overlay during open/close animations.

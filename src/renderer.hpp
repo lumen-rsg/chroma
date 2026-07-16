@@ -23,6 +23,14 @@ struct WindowSceneData {
     // Multi-layer drop shadow (4 rects behind the window)
     wlr_scene_rect* shadow_rects[4]{nullptr, nullptr, nullptr, nullptr};
 
+    // Thin border outlines — positioned OUTSIDE the window area so they
+    // never overlap the surface buffer. This avoids bleeding through
+    // transparent CSD shadow regions.
+    wlr_scene_rect* border_top{nullptr};
+    wlr_scene_rect* border_bottom{nullptr};
+    wlr_scene_rect* border_left{nullptr};
+    wlr_scene_rect* border_right{nullptr};
+
     bool is_stacked{false};
     int stack_index{0};
 
@@ -97,8 +105,14 @@ private:
     /// Create shadow rects for a window.
     void create_shadows(WindowSceneData& data, wlr_scene_tree* parent);
 
+    /// Create border outline rects for a window.
+    void create_borders(WindowSceneData& data, wlr_scene_tree* parent);
+
     /// Update shadow positions, sizes, and alpha for the current visual state.
     void update_shadows(WindowSceneData& data);
+
+    /// Update border outline positions, sizes, and colors.
+    void update_borders(WindowSceneData& data, bool focused);
 
     /// Update the position of a single window's scene node.
     void update_window_visuals(WindowSceneData& data, const ChromaWindow& win,
