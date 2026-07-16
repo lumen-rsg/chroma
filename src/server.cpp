@@ -101,6 +101,12 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Fractional scale (for HiDPI fractional scaling)
+    if (!wlr_fractional_scale_manager_v1_create(display, 1)) {
+        std::fprintf(stderr, "Failed to create fractional-scale manager\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);
