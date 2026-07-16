@@ -6,10 +6,12 @@
 namespace chroma {
 
 WlrootsServer::~WlrootsServer() {
-    // Remove backend listeners before destroying anything
-    wl_list_remove(&on_new_output.link);
-    wl_list_remove(&on_new_input.link);
-    
+    if (listeners_connected_) {
+        // Remove backend listeners before destroying anything
+        wl_list_remove(&on_new_output.link);
+        wl_list_remove(&on_new_input.link);
+    }
+
     if (xcursor_mgr) wlr_xcursor_manager_destroy(xcursor_mgr);
     if (display) wl_display_destroy(display);
 }
@@ -71,6 +73,8 @@ bool WlrootsServer::init() {
 
     on_new_input.notify = handle_new_input;
     wl_signal_add(&backend->events.new_input, &on_new_input);
+
+    listeners_connected_ = true;
 
     // Set environment for clients (before backend start so socket is ready)
     const char* socket_name = wl_display_add_socket_auto(display);

@@ -74,6 +74,8 @@ private:
     wlr_keyboard* keyboard_{nullptr};
     uint32_t modifier_state_{0};
 
+    bool listeners_connected_{false};  // guards destructor cleanup
+
     // Listeners
     wl_listener on_new_input_;
     wl_listener on_keyboard_key_;

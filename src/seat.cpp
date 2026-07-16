@@ -29,6 +29,8 @@ SeatManager::SeatManager(WlrootsServer* server, Canvas* canvas, FocusTracker* fo
 }
 
 SeatManager::~SeatManager() {
+    if (!listeners_connected_) return;
+
     wl_list_remove(&on_new_input_.link);
     wl_list_remove(&on_keyboard_key_.link);
     wl_list_remove(&on_keyboard_modifiers_.link);
@@ -62,6 +64,8 @@ void SeatManager::connect() {
 
     wlr_xcursor_manager_load(server_->xcursor_mgr, 1.0f);
     wlr_cursor_set_xcursor(server_->cursor, server_->xcursor_mgr, "left_ptr");
+
+    listeners_connected_ = true;
 }
 
 Vec2 SeatManager::active_output_size() const {

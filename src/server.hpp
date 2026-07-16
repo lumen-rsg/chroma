@@ -49,6 +49,8 @@ public:
 
     std::vector<wlr_scene_output*> scene_outputs;
 
+    bool listeners_connected_{false};  // guards destructor cleanup
+
     WlrootsServer() = default;
     ~WlrootsServer();
 
