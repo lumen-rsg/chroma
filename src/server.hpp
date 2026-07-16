@@ -37,6 +37,8 @@ extern "C" {
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_tearing_control_v1.h>
 #include <wlr/types/wlr_single_pixel_buffer_v1.h>
+#include <wlr/types/wlr_output_management_v1.h>
+#include <wlr/types/wlr_xdg_output_v1.h>
 }
 
 namespace chroma {

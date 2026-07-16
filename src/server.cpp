@@ -131,6 +131,20 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Output management (for display configuration tools like wlr-randr)
+    // Note: wlr_output_manager_v1_create() exposes the protocol but the
+    // compositor must handle apply/test events to actually change configs.
+    if (!wlr_output_manager_v1_create(display)) {
+        std::fprintf(stderr, "Failed to create output-manager\n");
+        // non-fatal
+    }
+
+    // XDG output (for output geometry advertisement to clients)
+    if (!wlr_xdg_output_manager_v1_create(display, output_layout)) {
+        std::fprintf(stderr, "Failed to create xdg-output-manager\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);
