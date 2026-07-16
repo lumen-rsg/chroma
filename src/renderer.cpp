@@ -31,7 +31,12 @@ void SceneRenderer::create_shadows(WindowSceneData& data, wlr_scene_tree* parent
 void SceneRenderer::update_shadows(WindowSceneData& data) {
     // Each shadow layer is offset progressively further and grows larger,
     // creating a soft, directional drop-shadow effect.
-    float alpha = data.visual_opacity;
+    //
+    // Shadows are only visible during open/close animations (as a fade effect).
+    // At steady state we hide them — they would bleed through the transparent
+    // drop-shadow regions that CSD clients draw in their own buffers.
+    bool animating = data.open_anim.active || data.close_anim.active;
+    float alpha = animating ? data.visual_opacity : 0.0f;
     
     for (int i = 0; i < config::SHADOW_LAYERS; i++) {
         if (!data.shadow_rects[i]) continue;
