@@ -97,3 +97,35 @@ executable('chroma', chroma_sources,
   ],
   install: true,
 )
+
+# ============================================================================
+# Tests — domain layer unit tests (no wlroots dependency)
+# ============================================================================
+
+test_sources = files(
+  'tests/test_main.cpp',
+  'tests/test_types.cpp',
+  'tests/test_focus.cpp',
+  'tests/test_stack.cpp',
+  'tests/test_canvas.cpp',
+)
+
+test_domain_sources = files(
+  'src/canvas.cpp',
+  'src/magnetism.cpp',
+  'src/stack.cpp',
+  'src/input.cpp',
+)
+
+test_exe = executable('test_domain',
+  test_sources + test_domain_sources,
+  include_directories: [
+    include_directories('src'),
+    include_directories('tests'),
+  ],
+  dependencies: [
+    math_dep,
+  ],
+)
+
+test('domain', test_exe)
