@@ -205,6 +205,12 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // DRM lease (for VR headset direct rendering)
+    if (!wlr_drm_lease_v1_manager_create(display, backend)) {
+        std::fprintf(stderr, "Failed to create drm-lease-manager\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);
