@@ -164,10 +164,18 @@ void XdgShellHandler::handle_new_toplevel(wl_listener* listener, void* data) {
             wlr_xdg_toplevel_set_size(toplevel, width, height);
             wlr_xdg_toplevel_set_activated(toplevel, true);
         }
-        // Note: don't overwrite win->size from client geometry on every commit —
-        // the compositor controls the size. The client's geometry reflects the
-        // size it's rendering at, which may lag behind our desired size during
-        // interactive resize.
+        // Update win->size from the client's window geometry (the content
+        // area within the surface buffer).  For CSD clients this excludes
+        // decorations like titlebar and drop-shadows; for SSD clients the
+        // geometry equals the full surface size.  We guard against unset
+        // geometry (width/height == 0) which occurs before the first commit
+        // that includes a set_window_geometry request.
+        if (win && xdg->geometry.width > 0 && xdg->geometry.height > 0) {
+            win->size = {
+                static_cast<float>(xdg->geometry.width),
+                static_cast<float>(xdg->geometry.height)
+            };
+        }
     };
     wl_signal_add(&wlr_surf->events.commit, &td_raw->surface_commit);
 
@@ -245,7 +253,10 @@ void XdgShellHandler::handle_new_toplevel_decoration(wl_listener* listener, void
     auto* decor = static_cast<wlr_xdg_toplevel_decoration_v1*>(data);
     (void)handler;
 
-    // Always request client-side decorations (CSD) — we don't draw SSD yet.
+    // Request server-side decorations (SSD) so clients don't draw their own
+    // titlebars and borders.  For clients that don't support the decoration
+    // protocol (always-CSD like weston-terminal), we crop their CSD out via
+    // wlr_scene_buffer_set_source_box using the xdg_surface geometry.
     //
     // wlroots 0.20: set_mode internally calls wlr_xdg_surface_schedule_configure,
     // which asserts that the surface is initialized.  If the client creates
@@ -256,11 +267,11 @@ void XdgShellHandler::handle_new_toplevel_decoration(wl_listener* listener, void
     wlr_xdg_surface* xdg_surface = decor->toplevel->base;
     if (xdg_surface->initialized) {
         wlr_xdg_toplevel_decoration_v1_set_mode(decor,
-            WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+            WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
     } else {
         // Surface not yet initialized — set scheduled_mode directly.
         // The configure will be sent later by the commit handler.
-        decor->scheduled_mode = WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+        decor->scheduled_mode = WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
     }
 }
 

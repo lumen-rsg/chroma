@@ -430,9 +430,38 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
         if (data.surface_node && win.mapped) {
             auto* scene_buffer = wlr_scene_buffer_from_node(data.surface_node);
             if (scene_buffer) {
+                // Look up the XDG geometry for this window.  The geometry
+                // defines the content area within the surface buffer — for
+                // CSD clients this excludes titlebar, borders, and shadows;
+                // for SSD clients it equals the full surface size.
+                int geo_x = 0, geo_y = 0;
+                int geo_w = 0, geo_h = 0;
+                if (auto* toplevel = xdg_handler_->toplevel_for(id)) {
+                    auto* xdg_surface = toplevel->base;
+                    if (xdg_surface->geometry.width > 0 &&
+                        xdg_surface->geometry.height > 0) {
+                        geo_x = xdg_surface->geometry.x;
+                        geo_y = xdg_surface->geometry.y;
+                        geo_w = xdg_surface->geometry.width;
+                        geo_h = xdg_surface->geometry.height;
+                    }
+                }
+
+                // Build a source-box that crops the surface buffer to the
+                // content area, discarding any CSD decorations.
+                if (geo_w > 0 && geo_h > 0) {
+                    struct wlr_fbox src_box = {
+                        static_cast<float>(geo_x),
+                        static_cast<float>(geo_y),
+                        static_cast<float>(geo_w),
+                        static_cast<float>(geo_h)
+                    };
+                    wlr_scene_buffer_set_source_box(scene_buffer, &src_box);
+                }
+
                 if (data.open_anim.active || data.close_anim.active) {
-                    // During open/close: clip surface to the animated window size
-                    // and position it at the tree origin for smooth scale-in/out.
+                    // During open/close: clip surface to the animated window
+                    // size and pin it at the tree origin for smooth scale-in/out.
                     int clip_w = static_cast<int>(data.visual_size.x);
                     int clip_h = static_cast<int>(data.visual_size.y);
                     if (clip_w < 1) clip_w = 1;
@@ -440,10 +469,11 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
                     wlr_scene_buffer_set_dest_size(scene_buffer, clip_w, clip_h);
                     wlr_scene_node_set_position(data.surface_node, 0, 0);
                 } else {
-                    // Steady state: scale surface to match the window's screen-space
-                    // size (needed for zoom to work correctly). Do NOT override the
-                    // surface node position — wlroots manages it internally to
-                    // account for surface offsets, subsurfaces, and CSD layout.
+                    // Steady state: scale surface to match the window's
+                    // screen-space size (needed for zoom to work correctly).
+                    // The source-box (set above) handles cropping CSD out.
+                    // Do NOT override the surface node position — wlroots
+                    // manages it internally for subsurface offsets.
                     int dst_w = static_cast<int>(data.visual_size.x);
                     int dst_h = static_cast<int>(data.visual_size.y);
                     if (dst_w < 1) dst_w = 1;
