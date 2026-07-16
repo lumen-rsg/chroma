@@ -204,16 +204,23 @@ void WlrootsServer::handle_new_output(wl_listener* listener, void* data) {
     wlr_output_state_finish(&state);
 
     // Add to output layout
-    wlr_output_layout_add_auto(server->output_layout, output);
+    auto* layout_output = wlr_output_layout_add_auto(server->output_layout, output);
 
     // Create scene output
     auto* scene_output = wlr_scene_output_create(server->scene, output);
     if (scene_output) {
         server->scene_outputs.push_back(scene_output);
+        // Register with the scene layout so it renders
+        wlr_scene_output_layout_add_output(server->scene_layout, layout_output, scene_output);
     }
 
     std::printf("[chroma] Output '%s' added: %dx%d\n",
                 output->name, output->width, output->height);
+
+    // Notify the app layer so it can set up per-output frame callbacks
+    if (server->on_output_created) {
+        server->on_output_created(output, scene_output);
+    }
 }
 
 void WlrootsServer::handle_new_input(wl_listener* listener, void* data) {

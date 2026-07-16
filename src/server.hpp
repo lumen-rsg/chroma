@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <string>
+#include <functional>
 
 extern "C" {
 #define WLR_USE_UNSTABLE
@@ -50,6 +51,10 @@ public:
     std::vector<wlr_scene_output*> scene_outputs;
 
     bool listeners_connected_{false};  // guards destructor cleanup
+
+    /// Called after common output setup (init render, mode, layout, scene output).
+    /// ChromaApp wires this to set up per-output frame callbacks.
+    std::function<void(wlr_output*, wlr_scene_output*)> on_output_created;
 
     WlrootsServer() = default;
     ~WlrootsServer();

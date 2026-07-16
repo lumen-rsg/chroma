@@ -1,26 +1,22 @@
 #include "app.hpp"
-#include <cstdio>
 #include <csignal>
+#include <cstdio>
 
 namespace chroma {
 
-// Global pointer for signal handling
-static ChromaApp* g_app = nullptr;
-
-static void signal_handler(int sig) {
-    if (g_app) {
-        std::fprintf(stderr, "[chroma] Received signal %d, shutting down.\n", sig);
-        g_app->quit();
-    }
+// Signal handler for wl_event_loop_add_signal — receives ChromaApp* as user data
+static int on_signal(int sig, void* data) {
+    auto* app = static_cast<ChromaApp*>(data);
+    std::fprintf(stderr, "[chroma] Received signal %d, shutting down.\n", sig);
+    app->quit();
+    return 0;
 }
 
 ChromaApp::ChromaApp()
     : xdg_handler_(&server_, &canvas_)
     , renderer_(&server_, &canvas_, &xdg_handler_, &stacks_)
     , seat_(&server_, &canvas_, &focus_, &input_router_, &stacks_, &magnetism_, &xdg_handler_)
-{
-    g_app = this;
-}
+{}
 
 ChromaApp::~ChromaApp() {
     // Remove all frame listeners before outputs are destroyed
@@ -28,19 +24,21 @@ ChromaApp::~ChromaApp() {
         wl_list_remove(&data.frame.link);
     }
     output_frames_.clear();
-    g_app = nullptr;
 }
 
 bool ChromaApp::init() {
     std::printf("[chroma] Initializing Chroma WM...\n");
-    
-    // Register signal handlers for graceful shutdown
-    signal(SIGTERM, signal_handler);
-    signal(SIGINT, signal_handler);
 
     if (!server_.init()) {
         std::fprintf(stderr, "[chroma] Failed to initialize server\n");
         return false;
+    }
+
+    // Register signal handlers via the Wayland event loop (no global needed)
+    {
+        auto* loop = wl_display_get_event_loop(server_.display);
+        wl_event_loop_add_signal(loop, SIGTERM, on_signal, this);
+        wl_event_loop_add_signal(loop, SIGINT, on_signal, this);
     }
 
     // Wire XDG shell handler → domain + renderer
@@ -58,12 +56,13 @@ bool ChromaApp::init() {
     // Wire seat manager → input
     seat_.connect();
 
-    // Set up output frame handlers
-    // We need to override the server's new_output handler with our own
-    // that both creates the scene output AND sets up frame callbacks
-    setup_output_handlers();
+    // Wire the server's output-created callback so we set up frame handlers
+    // on top of the common output setup performed by WlrootsServer.
+    server_.on_output_created = [this](wlr_output* output, wlr_scene_output* scene_output) {
+        this->on_new_output(output, scene_output);
+    };
 
-    // Handle xdg_activation requests
+    // Handle xdg_activation requests — use wl_container_of in the static handler
     if (server_.xdg_activation) {
         on_activation_request_.notify = handle_activation_request;
         wl_signal_add(&server_.xdg_activation->events.request_activate,
@@ -151,6 +150,7 @@ void ChromaApp::on_new_output(wlr_output* output, wlr_scene_output* scene_output
     OutputFrameData& data = output_frames_.back();
     data.output = output;
     data.scene_output = scene_output;
+    data.app = this;
     data.frame.notify = handle_output_frame;
     wl_signal_add(&output->events.frame, &data.frame);
 
@@ -160,15 +160,15 @@ void ChromaApp::on_new_output(wlr_output* output, wlr_scene_output* scene_output
 
 void ChromaApp::handle_output_frame(wl_listener* listener, void* /*data*/) {
     OutputFrameData* frame_data = wl_container_of(listener, frame_data, frame);
-    ChromaApp* app = g_app;
+    ChromaApp* app = frame_data->app;
 
     if (!app) return;
 
     app->renderer_.render_frame(frame_data->scene_output, frame_data->output);
 }
 
-void ChromaApp::handle_activation_request(wl_listener* /*listener*/, void* data) {
-    ChromaApp* app = g_app;
+void ChromaApp::handle_activation_request(wl_listener* listener, void* data) {
+    ChromaApp* app = wl_container_of(listener, app, on_activation_request_);
     if (!app) return;
 
     auto* event = static_cast<wlr_xdg_activation_v1_request_activate_event*>(data);
@@ -176,60 +176,6 @@ void ChromaApp::handle_activation_request(wl_listener* /*listener*/, void* data)
 
     // Token-based activation — for now just suppress the GLFW warning
     (void)app;
-}
-
-// ============================================================================
-// Override server output handler
-// ============================================================================
-
-void ChromaApp::setup_output_handlers() {
-    // Replace the server's new_output handler with our own
-    // First remove the old one
-    wl_list_remove(&server_.on_new_output.link);
-
-    // Add our own
-    server_.on_new_output.notify = [](wl_listener* /*listener*/, void* data) {
-        ChromaApp* app = g_app;
-        if (!app) return;
-
-        auto* output = static_cast<wlr_output*>(data);
-        auto* server = &app->server_;
-
-        // Initialize output rendering
-        wlr_output_init_render(output, server->allocator, server->renderer);
-
-        wlr_output_state state;
-        wlr_output_state_init(&state);
-
-        if (!wl_list_empty(&output->modes)) {
-            auto* mode = wlr_output_preferred_mode(output);
-            wlr_output_state_set_mode(&state, mode);
-        }
-        wlr_output_state_set_enabled(&state, true);
-
-        if (!wlr_output_commit_state(output, &state)) {
-            std::fprintf(stderr, "Failed to commit output state\n");
-            wlr_output_state_finish(&state);
-            return;
-        }
-        wlr_output_state_finish(&state);
-
-        auto* layout_output = wlr_output_layout_add_auto(server->output_layout, output);
-
-        auto* scene_output = wlr_scene_output_create(server->scene, output);
-        if (scene_output) {
-            server->scene_outputs.push_back(scene_output);
-            // Register scene output with the scene layout so it renders
-            wlr_scene_output_layout_add_output(server->scene_layout, layout_output, scene_output);
-        }
-
-        std::printf("[chroma] Output '%s' added: %dx%d\n",
-                    output->name, output->width, output->height);
-
-        // Set up frame callback
-        app->on_new_output(output, scene_output);
-    };
-    wl_signal_add(&server_.backend->events.new_output, &server_.on_new_output);
 }
 
 } // namespace chroma

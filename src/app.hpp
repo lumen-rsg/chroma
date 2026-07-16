@@ -54,6 +54,7 @@ private:
         wlr_output* output;
         wlr_scene_output* scene_output;
         wl_listener frame;
+        ChromaApp* app;
     };
     std::list<OutputFrameData> output_frames_;
 
@@ -68,9 +69,6 @@ private:
 
     static void handle_output_frame(wl_listener* listener, void* data);
     static void handle_activation_request(wl_listener* listener, void* data);
-
-    // Override the server's new_output handler to also set up our frame callback
-    void setup_output_handlers();
 };
 
 } // namespace chroma
