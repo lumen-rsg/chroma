@@ -138,6 +138,10 @@ void XdgShellHandler::handle_new_toplevel(wl_listener* listener, void* data) {
         ToplevelData* td = wl_container_of(l, td_raw, surface_unmap);
         auto* win = td->handler->canvas_->get(td->window_id);
         if (win) win->mapped = false;
+        // Trigger close animation
+        if (td->handler->on_window_unmapped) {
+            td->handler->on_window_unmapped(td->window_id);
+        }
     };
     wl_signal_add(&wlr_surf->events.unmap, &td_raw->surface_unmap);
 

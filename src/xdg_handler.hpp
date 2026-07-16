@@ -25,6 +25,7 @@ public:
     /// Callbacks for wiring into the renderer (set by ChromaApp).
     std::function<void(WindowId, wlr_surface*)> on_window_created;
     std::function<void(WindowId, wlr_surface*)> on_window_mapped;
+    std::function<void(WindowId)> on_window_unmapped;
     std::function<void(WindowId)> on_window_removed;
 
     /// Callbacks for wiring into foreign-toplevel and other observers.

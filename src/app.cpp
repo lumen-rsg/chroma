@@ -50,6 +50,10 @@ bool ChromaApp::init() {
     xdg_handler_.on_window_mapped = [this](WindowId id, wlr_surface* s) {
         this->on_window_mapped(id, s);
     };
+    xdg_handler_.on_window_unmapped = [this](WindowId id) {
+        this->renderer_.on_window_unmapped(id);
+        this->server_.schedule_all_frames();
+    };
     xdg_handler_.on_window_removed = [this](WindowId id) {
         this->on_window_destroyed(id);
     };

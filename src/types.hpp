@@ -173,6 +173,23 @@ namespace config {
     constexpr float GRID_SIZE      = 50.0f;    // snap grid resolution
     constexpr float STACK_OFFSET   = 8.0f;     // visual offset per card in a stack
     constexpr float ATTRACTION_STR = 0.1f;     // magnetism pull strength (0-1)
+
+    // Animation durations (seconds)
+    constexpr float ANIM_MOVE_DURATION   = 0.15f;  // smooth window move
+    constexpr float ANIM_RESIZE_DURATION = 0.20f;  // smooth window resize
+    constexpr float ANIM_OPEN_DURATION   = 0.25f;  // window open (scale-up)
+    constexpr float ANIM_CLOSE_DURATION  = 0.18f;  // window close (scale-down)
+
+    // Visual snap threshold: if the difference between visual and logical
+    // position/size is less than this (in screen pixels), snap instantly
+    // instead of animating. Keeps interactive drags feeling responsive.
+    constexpr float ANIM_SNAP_THRESHOLD = 5.0f;
+
+    // Shadow configuration
+    constexpr int   SHADOW_LAYERS   = 4;
+    constexpr float SHADOW_OFFSET_X = 4.0f;   // base horizontal offset per layer
+    constexpr float SHADOW_OFFSET_Y = 4.0f;   // base vertical offset per layer
+    constexpr float SHADOW_GROW     = 4.0f;   // extra size per layer on each side
 }
 
 } // namespace chroma

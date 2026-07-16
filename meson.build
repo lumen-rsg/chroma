@@ -70,6 +70,7 @@ chroma_headers = files(
   'src/magnetism.hpp',
   'src/stack.hpp',
   'src/input.hpp',
+  'src/animation.hpp',
   'src/server.hpp',
   'src/xdg_handler.hpp',
   'src/layer_shell.hpp',
