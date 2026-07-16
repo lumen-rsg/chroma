@@ -38,6 +38,7 @@ chroma_sources = files(
   'src/server.cpp',
   'src/xdg_handler.cpp',
   'src/layer_shell.cpp',
+  'src/foreign_toplevel.cpp',
   'src/renderer.cpp',
   'src/seat.cpp',
 
@@ -60,6 +61,8 @@ chroma_headers = files(
   'src/input.hpp',
   'src/server.hpp',
   'src/xdg_handler.hpp',
+  'src/layer_shell.hpp',
+  'src/foreign_toplevel.hpp',
   'src/renderer.hpp',
   'src/seat.hpp',
   'src/app.hpp',

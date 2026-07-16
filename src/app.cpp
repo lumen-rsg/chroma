@@ -15,6 +15,7 @@ static int on_signal(int sig, void* data) {
 ChromaApp::ChromaApp()
     : xdg_handler_(&server_, &canvas_)
     , layer_shell_(&server_)
+    , foreign_toplevel_(&server_)
     , renderer_(&server_, &canvas_, &xdg_handler_, &stacks_)
     , seat_(&server_, &canvas_, &focus_, &input_router_, &stacks_, &magnetism_, &xdg_handler_)
 {}
@@ -54,11 +55,33 @@ bool ChromaApp::init() {
     };
     xdg_handler_.connect();
 
+    // Wire XDG title/app_id changes → foreign-toplevel
+    xdg_handler_.on_title_changed = [this](WindowId id, const std::string& title) {
+        this->foreign_toplevel_.on_title_changed(id, title);
+    };
+    xdg_handler_.on_app_id_changed = [this](WindowId id, const std::string& app_id) {
+        this->foreign_toplevel_.on_app_id_changed(id, app_id);
+    };
+
+    // Wire foreign-toplevel client activate requests → focus
+    foreign_toplevel_.on_client_activate_request = [this](WindowId id) {
+        this->canvas_.set_focus(id);
+        this->focus_.focused(id);
+        this->foreign_toplevel_.on_focus_changed(id);
+        this->seat_.update_keyboard_focus(&xdg_handler_);
+        this->server_.schedule_all_frames();
+    };
+
     // Wire layer shell
     layer_shell_.connect();
 
     // Wire seat manager → input
     seat_.connect();
+
+    // Wire seat focus changes → foreign-toplevel
+    seat_.on_focus_changed = [this](WindowId id) {
+        this->foreign_toplevel_.on_focus_changed(id);
+    };
 
     // Wire the server's output-created callback so we set up frame handlers
     // on top of the common output setup performed by WlrootsServer.
@@ -116,6 +139,12 @@ void ChromaApp::quit() {
 void ChromaApp::on_new_window(WindowId id, wlr_surface* surface) {
     renderer_.on_window_added(id, surface);
 
+    // Notify foreign-toplevel
+    auto* win = canvas_.get(id);
+    if (win) {
+        foreign_toplevel_.on_window_created(id, win->title, win->app_id);
+    }
+
     // Apply magnetic positioning
     magnetism_.apply(canvas_, id);
 
@@ -125,6 +154,7 @@ void ChromaApp::on_new_window(WindowId id, wlr_surface* surface) {
 void ChromaApp::on_window_destroyed(WindowId id) {
     focus_.remove(id);
     renderer_.on_window_removed(id);
+    foreign_toplevel_.on_window_destroyed(id);
 
     server_.schedule_all_frames();
 }
@@ -135,7 +165,13 @@ void ChromaApp::on_window_mapped(WindowId id, wlr_surface* surface) {
     // Auto-focus new windows
     canvas_.set_focus(id);
     focus_.focused(id);
+    foreign_toplevel_.on_focus_changed(id);
     seat_.update_keyboard_focus(&xdg_handler_);
+
+    // Enter the first available output so taskbars can see the window
+    if (!server_.scene_outputs.empty()) {
+        foreign_toplevel_.on_output_enter(id, server_.scene_outputs[0]->output);
+    }
 
     // Apply magnetism
     magnetism_.apply(canvas_, id);

@@ -179,16 +179,24 @@ void XdgShellHandler::handle_new_toplevel(wl_listener* listener, void* data) {
     td_raw->set_title.notify = [](wl_listener* l, void* /*data*/) {
         ToplevelData* td = wl_container_of(l, td_raw, set_title);
         auto* win = td->handler->canvas_->get(td->window_id);
-        if (win && td->toplevel->title)
+        if (win && td->toplevel->title) {
             win->title = td->toplevel->title;
+            if (td->handler->on_title_changed) {
+                td->handler->on_title_changed(td->window_id, td->toplevel->title);
+            }
+        }
     };
     wl_signal_add(&toplevel->events.set_title, &td_raw->set_title);
 
     td_raw->set_app_id.notify = [](wl_listener* l, void* /*data*/) {
         ToplevelData* td = wl_container_of(l, td_raw, set_app_id);
         auto* win = td->handler->canvas_->get(td->window_id);
-        if (win && td->toplevel->app_id)
+        if (win && td->toplevel->app_id) {
             win->app_id = td->toplevel->app_id;
+            if (td->handler->on_app_id_changed) {
+                td->handler->on_app_id_changed(td->window_id, td->toplevel->app_id);
+            }
+        }
     };
     wl_signal_add(&toplevel->events.set_app_id, &td_raw->set_app_id);
 

@@ -103,7 +103,12 @@ void SeatManager::update_keyboard_focus(XdgShellHandler* xdg_handler) {
         }
     }
     prev_focused_ = focused;
-    
+
+    // Notify observers (e.g. foreign-toplevel handler)
+    if (on_focus_changed) {
+        on_focus_changed(focused);
+    }
+
     if (focused == INVALID_WINDOW) {
         std::fprintf(stderr, "[chroma] KB focus: clear\n");
         wlr_seat_keyboard_notify_clear_focus(server_->seat);

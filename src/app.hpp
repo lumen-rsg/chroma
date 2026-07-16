@@ -8,6 +8,7 @@
 #include "magnetism.hpp"
 #include "xdg_handler.hpp"
 #include "layer_shell.hpp"
+#include "foreign_toplevel.hpp"
 #include "renderer.hpp"
 #include "seat.hpp"
 
@@ -48,6 +49,7 @@ private:
     WlrootsServer server_;
     XdgShellHandler xdg_handler_;
     LayerShellHandler layer_shell_;
+    ForeignToplevelHandler foreign_toplevel_;
     SceneRenderer renderer_;
     SeatManager seat_;
 

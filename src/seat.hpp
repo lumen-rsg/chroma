@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include "server.hpp"
 #include "canvas.hpp"
 #include "focus.hpp"
@@ -34,6 +36,9 @@ public:
 
     /// Update keyboard focus to match canvas focus state.
     void update_keyboard_focus(XdgShellHandler* xdg_handler);
+
+    /// Callback invoked when keyboard focus changes (for foreign-toplevel, etc.).
+    std::function<void(WindowId)> on_focus_changed;
     
     /// Detect which resize edge(s) the cursor is near on a window rect.
     static uint32_t detect_resize_edge(const Rect& win_rect, Vec2 cursor_canvas, int margin);

@@ -27,6 +27,10 @@ public:
     std::function<void(WindowId, wlr_surface*)> on_window_mapped;
     std::function<void(WindowId)> on_window_removed;
 
+    /// Callbacks for wiring into foreign-toplevel and other observers.
+    std::function<void(WindowId, const std::string&)> on_title_changed;
+    std::function<void(WindowId, const std::string&)> on_app_id_changed;
+
 private:
     friend struct ToplevelData;
 
