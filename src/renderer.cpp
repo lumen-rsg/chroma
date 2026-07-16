@@ -341,7 +341,6 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
         update_shadows(data);
 
         // --- Update border/background rect ---
-        constexpr int BORDER_W = 4;
         if (data.bg_rect) {
             float color[4];
             if (win.focused) {
@@ -359,17 +358,28 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
                 static_cast<int>(data.visual_size.y));
         }
 
-        // --- Position surface node (inset within border) ---
+        // --- Position surface node (at natural size, border behind it) ---
         if (data.surface_node && win.mapped) {
-            wlr_scene_node_set_position(data.surface_node, BORDER_W, BORDER_W);
+            // During open/close animations, clip the surface to the animated
+            // window size so it scales smoothly with the border and shadows.
+            // At steady state (no animation), let the buffer render at its
+            // natural size — CSD clients (weston-terminal, kitty, etc.) draw
+            // their own decorations at full buffer size and the bg_rect behind
+            // shows through only where the surface doesn't cover.
             auto* scene_buffer = wlr_scene_buffer_from_node(data.surface_node);
             if (scene_buffer) {
-                int surf_w = static_cast<int>(data.visual_size.x) - BORDER_W * 2;
-                int surf_h = static_cast<int>(data.visual_size.y) - BORDER_W * 2;
-                if (surf_w < 1) surf_w = 1;
-                if (surf_h < 1) surf_h = 1;
-                wlr_scene_buffer_set_dest_size(scene_buffer, surf_w, surf_h);
+                if (data.open_anim.active || data.close_anim.active) {
+                    int clip_w = static_cast<int>(data.visual_size.x);
+                    int clip_h = static_cast<int>(data.visual_size.y);
+                    if (clip_w < 1) clip_w = 1;
+                    if (clip_h < 1) clip_h = 1;
+                    wlr_scene_buffer_set_dest_size(scene_buffer, clip_w, clip_h);
+                } else {
+                    // Release dest size override — use buffer's natural size
+                    wlr_scene_buffer_set_dest_size(scene_buffer, 0, 0);
+                }
             }
+            wlr_scene_node_set_position(data.surface_node, 0, 0);
         }
 
         // Update dirty tracking (track last committed visual state)
