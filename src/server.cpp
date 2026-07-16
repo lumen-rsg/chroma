@@ -163,6 +163,18 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Relative pointer (for raw relative motion events — gaming, VM windows)
+    if (!wlr_relative_pointer_manager_v1_create(display)) {
+        std::fprintf(stderr, "Failed to create relative-pointer-manager\n");
+        // non-fatal
+    }
+
+    // Pointer constraints (for pointer locking and confinement — gaming)
+    if (!wlr_pointer_constraints_v1_create(display)) {
+        std::fprintf(stderr, "Failed to create pointer-constraints\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);
