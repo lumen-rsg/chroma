@@ -341,16 +341,19 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
         update_shadows(data);
 
         // --- Update border/background rect ---
+        // The bg_rect serves as a fade overlay during open/close animations.
+        // At steady state it's invisible — CSD clients draw their own borders
+        // and our colored rect would bleed through their transparent shadow areas.
         if (data.bg_rect) {
             float color[4];
             if (win.focused) {
-                // Vibrant purple for focused windows
-                color[0] = 0.30f; color[1] = 0.24f; color[2] = 0.50f;
+                color[0] = 0.30f; color[1] = 0.24f; color[2] = 0.50f;  // vibrant purple
             } else {
-                // Subtle dark for unfocused windows
-                color[0] = 0.15f; color[1] = 0.15f; color[2] = 0.18f;
+                color[0] = 0.15f; color[1] = 0.15f; color[2] = 0.18f;  // subtle dark
             }
-            color[3] = data.visual_opacity;
+            // Only show during animations; invisible at steady state
+            color[3] = (data.open_anim.active || data.close_anim.active)
+                           ? data.visual_opacity : 0.0f;
             
             wlr_scene_rect_set_color(data.bg_rect, color);
             wlr_scene_rect_set_size(data.bg_rect,
