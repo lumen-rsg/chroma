@@ -76,13 +76,15 @@ void SceneRenderer::update_shadows(WindowSceneData& data) {
 }
 
 void SceneRenderer::update_borders(WindowSceneData& data, bool focused) {
-    constexpr int BW = 2;  // border thickness in screen pixels
+    constexpr int BW = 1;  // border thickness in screen pixels
     
     float color[4];
     if (focused) {
-        color[0] = 0.38f; color[1] = 0.30f; color[2] = 0.60f; color[3] = 1.0f;
+        // Vibrant purple, semi-transparent
+        color[0] = 0.38f; color[1] = 0.30f; color[2] = 0.60f; color[3] = 0.85f;
     } else {
-        color[0] = 0.18f; color[1] = 0.18f; color[2] = 0.22f; color[3] = 1.0f;
+        // Subtle dark, semi-transparent
+        color[0] = 0.18f; color[1] = 0.18f; color[2] = 0.22f; color[3] = 0.60f;
     }
     
     int w = static_cast<int>(data.visual_size.x);
