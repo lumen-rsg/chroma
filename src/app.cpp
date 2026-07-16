@@ -215,10 +215,32 @@ void ChromaApp::handle_activation_request(wl_listener* listener, void* data) {
     if (!app) return;
 
     auto* event = static_cast<wlr_xdg_activation_v1_request_activate_event*>(data);
-    if (!event || !event->token) return;
+    if (!event) return;
 
-    // Token-based activation — for now just suppress the GLFW warning
-    (void)app;
+    // Try to find the window that should be activated.
+    // The event provides both a surface (the requesting window) and
+    // optionally a token (for startup-sequence validation).
+    wlr_surface* surface = event->surface;
+    if (!surface && event->token) {
+        // Fall back to the token's source surface if no direct surface given
+        surface = event->token->surface;
+    }
+
+    if (surface) {
+        // Check if this is an XDG toplevel surface
+        auto* xdg_surface = wlr_xdg_surface_try_from_wlr_surface(surface);
+        if (xdg_surface && xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
+            WindowId id = app->xdg_handler_.window_for(xdg_surface->toplevel);
+            if (id != INVALID_WINDOW) {
+                std::printf("[chroma] Activation request for window %lu\n", id);
+                app->canvas_.set_focus(id);
+                app->focus_.focused(id);
+                app->foreign_toplevel_.on_focus_changed(id);
+                app->seat_.update_keyboard_focus(&app->xdg_handler_);
+                app->server_.schedule_all_frames();
+            }
+        }
+    }
 }
 
 } // namespace chroma
