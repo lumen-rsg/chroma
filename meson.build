@@ -7,7 +7,18 @@ project('chroma', 'cpp',
     'default_library=static',
   ])
 
-# wl_container_of on C++ classes can trigger -Winvalid-offsetof.
+# wl_container_of() uses offsetof() on C++ types to compute the containing
+# struct pointer from a wl_listener member. This is valid C but triggers
+# -Winvalid-offsetof in C++ because the standard says offsetof is only
+# conditionally supported for non-standard-layout types. In practice, it
+# works correctly on all compilers and platforms that wlroots supports
+# (GCC, Clang; Linux; ELF ABI), and wlroots itself relies on this pattern
+# pervasively. The flag is scoped project-wide because every translation
+# unit that includes wlroots headers will instantiate the macro.
+#
+# No custom offsetof usage exists in chroma's own code — this suppression
+# is exclusively for wlroots interop. If the project grows its own
+# offsetof-like utilities, audit them separately.
 add_project_arguments(
   '-Wno-invalid-offsetof',
   language: 'cpp',
