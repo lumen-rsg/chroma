@@ -48,6 +48,7 @@ extern "C" {
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_keyboard_shortcuts_inhibit_v1.h>
 #include <wlr/types/wlr_idle_inhibit_v1.h>
+#include <wlr/types/wlr_linux_dmabuf_v1.h>
 }
 
 namespace chroma {

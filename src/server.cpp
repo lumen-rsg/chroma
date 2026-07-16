@@ -199,6 +199,12 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Linux DMA-BUF (for hardware-accelerated GPU buffer sharing)
+    if (!wlr_linux_dmabuf_v1_create_with_renderer(display, 4, renderer)) {
+        std::fprintf(stderr, "Failed to create linux-dmabuf\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);
