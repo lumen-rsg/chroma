@@ -31,6 +31,7 @@ extern "C" {
 		#include <wlr/types/wlr_primary_selection_v1.h>
 		#include <wlr/types/wlr_ext_data_control_v1.h>
 		#include <wlr/types/wlr_foreign_toplevel_management_v1.h>
+		#include <wlr/types/wlr_screencopy_v1.h>
 }
 
 namespace chroma {
@@ -53,6 +54,7 @@ public:
     wlr_xdg_decoration_manager_v1* xdg_decoration_mgr{nullptr};
     wlr_layer_shell_v1* layer_shell{nullptr};
     wlr_foreign_toplevel_manager_v1* foreign_toplevel_mgr{nullptr};
+    wlr_screencopy_manager_v1* screencopy_mgr{nullptr};
 
     wl_listener on_new_output;
     wl_listener on_new_input;
