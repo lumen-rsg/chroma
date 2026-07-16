@@ -145,6 +145,12 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Idle notifier (for screensavers, idle detection)
+    if (!wlr_idle_notifier_v1_create(display)) {
+        std::fprintf(stderr, "Failed to create idle-notifier\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);

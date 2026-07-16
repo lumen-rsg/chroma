@@ -39,6 +39,7 @@ extern "C" {
 #include <wlr/types/wlr_single_pixel_buffer_v1.h>
 #include <wlr/types/wlr_output_management_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
+#include <wlr/types/wlr_idle_notify_v1.h>
 }
 
 namespace chroma {
