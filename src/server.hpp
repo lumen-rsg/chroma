@@ -33,6 +33,7 @@ extern "C" {
 		#include <wlr/types/wlr_foreign_toplevel_management_v1.h>
 		#include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
+#include <wlr/types/wlr_presentation_time.h>
 }
 
 namespace chroma {

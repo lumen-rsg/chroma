@@ -107,6 +107,12 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Presentation time (for frame timing, video sync)
+    if (!wlr_presentation_create(display, backend, 1)) {
+        std::fprintf(stderr, "Failed to create presentation-time global\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);
