@@ -74,6 +74,13 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Layer shell (for panels, wallpapers, overlays, lock screens)
+    layer_shell = wlr_layer_shell_v1_create(display, 4);
+    if (!layer_shell) {
+        std::fprintf(stderr, "Failed to create layer shell\n");
+        // non-fatal — the compositor still runs but without bars/overlays
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);

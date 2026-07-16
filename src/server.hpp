@@ -26,7 +26,8 @@ extern "C" {
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_xdg_activation_v1.h>
-#include <wlr/types/wlr_xdg_decoration_v1.h>
+	#include <wlr/types/wlr_xdg_decoration_v1.h>
+	#include <wlr/types/wlr_layer_shell_v1.h>
 }
 
 namespace chroma {
@@ -47,6 +48,7 @@ public:
     wlr_xdg_shell*     xdg_shell{nullptr};
     wlr_xdg_activation_v1* xdg_activation{nullptr};
     wlr_xdg_decoration_manager_v1* xdg_decoration_mgr{nullptr};
+    wlr_layer_shell_v1* layer_shell{nullptr};
 
     wl_listener on_new_output;
     wl_listener on_new_input;

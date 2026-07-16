@@ -7,6 +7,7 @@
 #include "stack.hpp"
 #include "magnetism.hpp"
 #include "xdg_handler.hpp"
+#include "layer_shell.hpp"
 #include "renderer.hpp"
 #include "seat.hpp"
 
@@ -46,6 +47,7 @@ private:
     // --- Adapters (wlroots-aware) ---
     WlrootsServer server_;
     XdgShellHandler xdg_handler_;
+    LayerShellHandler layer_shell_;
     SceneRenderer renderer_;
     SeatManager seat_;
 

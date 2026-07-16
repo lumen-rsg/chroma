@@ -14,6 +14,7 @@ static int on_signal(int sig, void* data) {
 
 ChromaApp::ChromaApp()
     : xdg_handler_(&server_, &canvas_)
+    , layer_shell_(&server_)
     , renderer_(&server_, &canvas_, &xdg_handler_, &stacks_)
     , seat_(&server_, &canvas_, &focus_, &input_router_, &stacks_, &magnetism_, &xdg_handler_)
 {}
@@ -52,6 +53,9 @@ bool ChromaApp::init() {
         this->on_window_destroyed(id);
     };
     xdg_handler_.connect();
+
+    // Wire layer shell
+    layer_shell_.connect();
 
     // Wire seat manager → input
     seat_.connect();
@@ -145,6 +149,9 @@ void ChromaApp::on_window_mapped(WindowId id, wlr_surface* surface) {
 
 void ChromaApp::on_new_output(wlr_output* output, wlr_scene_output* scene_output) {
     std::printf("[chroma] Setting up frame handler for output '%s'\n", output->name);
+
+    // Create per-output layer shell trees
+    layer_shell_.on_output_created(output);
 
     output_frames_.emplace_back();
     OutputFrameData& data = output_frames_.back();

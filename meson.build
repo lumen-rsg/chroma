@@ -37,6 +37,7 @@ chroma_sources = files(
   # Adapters
   'src/server.cpp',
   'src/xdg_handler.cpp',
+  'src/layer_shell.cpp',
   'src/renderer.cpp',
   'src/seat.cpp',
 
