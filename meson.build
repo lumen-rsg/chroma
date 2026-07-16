@@ -3,7 +3,7 @@ project('chroma', 'cpp',
   license: 'MIT',
   default_options: [
     'cpp_std=gnu++20',
-    'warning_level=2',
+    'warning_level=3',
     'default_library=static',
   ])
 

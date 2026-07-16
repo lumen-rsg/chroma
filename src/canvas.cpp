@@ -199,7 +199,7 @@ void Canvas::raise_to_top(WindowId id) {
 
 GroupId Canvas::create_group(std::string name) {
     GroupId id = next_group_id();
-    groups_[id] = WindowGroup{id, std::move(name)};
+    groups_[id] = WindowGroup{.id = id, .name = std::move(name), .windows = {}, .magnetism_strength = config::ATTRACTION_STR};
     return id;
 }
 
