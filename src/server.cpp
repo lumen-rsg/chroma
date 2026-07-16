@@ -187,6 +187,18 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Keyboard shortcuts inhibit (for VM/remote desktop passthrough)
+    if (!wlr_keyboard_shortcuts_inhibit_v1_create(display)) {
+        std::fprintf(stderr, "Failed to create keyboard-shortcuts-inhibit\n");
+        // non-fatal
+    }
+
+    // Idle inhibit (for video players, presentation apps)
+    if (!wlr_idle_inhibit_v1_create(display)) {
+        std::fprintf(stderr, "Failed to create idle-inhibit-manager\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);
