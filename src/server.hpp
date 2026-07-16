@@ -1,0 +1,70 @@
+#pragma once
+
+#include <vector>
+#include <string>
+
+extern "C" {
+#define WLR_USE_UNSTABLE
+#include <wayland-server.h>
+#include <wlr/backend.h>
+#include <wlr/render/wlr_renderer.h>
+#include <wlr/render/allocator.h>
+// wlr_scene.h and color.h are loaded from compat/ with [static N] patched out
+#include <wlr/types/wlr_scene.h>
+#include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_subcompositor.h>
+#include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_xcursor_manager.h>
+#include <wlr/types/wlr_keyboard.h>
+#include <wlr/types/wlr_pointer.h>
+#include <wlr/types/wlr_input_device.h>
+#include <wlr/types/wlr_output.h>
+#include <wlr/types/wlr_data_device.h>
+#include <wlr/types/wlr_xdg_activation_v1.h>
+}
+
+namespace chroma {
+
+class WlrootsServer {
+public:
+    wl_display*        display{nullptr};
+    wlr_backend*       backend{nullptr};
+    wlr_renderer*      renderer{nullptr};
+    wlr_allocator*     allocator{nullptr};
+    wlr_scene*         scene{nullptr};
+    wlr_scene_output_layout* scene_layout{nullptr};
+    wlr_compositor*    compositor{nullptr};
+    wlr_output_layout* output_layout{nullptr};
+    wlr_seat*          seat{nullptr};
+    wlr_cursor*        cursor{nullptr};
+    wlr_xcursor_manager* xcursor_mgr{nullptr};
+    wlr_xdg_shell*     xdg_shell{nullptr};
+    wlr_xdg_activation_v1* xdg_activation{nullptr};
+
+    wl_listener on_new_output;
+    wl_listener on_new_input;
+
+    std::vector<wlr_scene_output*> scene_outputs;
+
+    WlrootsServer() = default;
+    ~WlrootsServer();
+
+    bool init();
+    bool start_backend();  // call after all listeners are connected
+    void run();
+    void terminate();
+
+private:
+    bool init_backend();
+    bool init_renderer_and_allocator();
+    bool init_scene();
+    bool init_seat();
+
+    static void handle_new_output(wl_listener* listener, void* data);
+    static void handle_new_input(wl_listener* listener, void* data);
+};
+
+} // namespace chroma

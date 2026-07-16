@@ -1,0 +1,62 @@
+#pragma once
+
+#include "types.hpp"
+#include "canvas.hpp"
+#include <vector>
+#include <functional>
+
+namespace chroma {
+
+// ============================================================================
+// MagnetismEngine — magnetic window positioning
+// ============================================================================
+
+class MagnetismEngine {
+public:
+    struct Config {
+        float snap_distance{config::SNAP_DISTANCE};       // pixels
+        float attraction_strength{config::ATTRACTION_STR}; // 0–1
+        float grid_size{config::GRID_SIZE};               // snap grid
+    };
+
+    Config config;
+
+    /// Snap `window_id` to the nearest group centroid if within snap_distance.
+    /// Also applies grid-snapping for ungrouped windows.
+    /// Called after a window is moved, resized, or created.
+    void snap_to_nearby(Canvas& canvas, WindowId window_id);
+
+    /// Apply gentle attraction: pull all windows in the same group
+    /// slightly toward `moved_id` (gravity metaphor).
+    void attract_group(Canvas& canvas, WindowId moved_id);
+
+    /// Create a group from all windows within `radius` of `center_id`.
+    /// Returns the new group's ID, or NO_GROUP if no windows nearby.
+    GroupId group_nearby(Canvas& canvas, WindowId center_id, float radius);
+
+    /// Apply grid snapping to an ungrouped window's position.
+    /// Returns the snapped position.
+    Vec2 snap_to_grid(Vec2 pos) const;
+
+    /// Full magnetic pass: snap + attract for a moved window.
+    void apply(Canvas& canvas, WindowId moved_id);
+};
+
+// ============================================================================
+// Implementation (inline helpers)
+// ============================================================================
+
+inline Vec2 MagnetismEngine::snap_to_grid(Vec2 pos) const {
+    float g = config.grid_size;
+    return {
+        std::round(pos.x / g) * g,
+        std::round(pos.y / g) * g
+    };
+}
+
+inline void MagnetismEngine::apply(Canvas& canvas, WindowId moved_id) {
+    snap_to_nearby(canvas, moved_id);
+    attract_group(canvas, moved_id);
+}
+
+} // namespace chroma
