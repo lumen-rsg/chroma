@@ -424,28 +424,31 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
                 static_cast<int>(data.visual_size.y));
         }
 
-        // --- Position surface node (at natural size, border behind it) ---
+        // --- Position and size the surface node ---
         if (data.surface_node && win.mapped) {
-            // During open/close animations, clip the surface to the animated
-            // window size so it scales smoothly with the border and shadows.
-            // At steady state (no animation), let the buffer render at its
-            // natural size — CSD clients (weston-terminal, kitty, etc.) draw
-            // their own decorations at full buffer size and the bg_rect behind
-            // shows through only where the surface doesn't cover.
             auto* scene_buffer = wlr_scene_buffer_from_node(data.surface_node);
             if (scene_buffer) {
                 if (data.open_anim.active || data.close_anim.active) {
+                    // During open/close: clip surface to the animated window size
+                    // and position it at the tree origin for smooth scale-in/out.
                     int clip_w = static_cast<int>(data.visual_size.x);
                     int clip_h = static_cast<int>(data.visual_size.y);
                     if (clip_w < 1) clip_w = 1;
                     if (clip_h < 1) clip_h = 1;
                     wlr_scene_buffer_set_dest_size(scene_buffer, clip_w, clip_h);
+                    wlr_scene_node_set_position(data.surface_node, 0, 0);
                 } else {
-                    // Release dest size override — use buffer's natural size
-                    wlr_scene_buffer_set_dest_size(scene_buffer, 0, 0);
+                    // Steady state: scale surface to match the window's screen-space
+                    // size (needed for zoom to work correctly). Do NOT override the
+                    // surface node position — wlroots manages it internally to
+                    // account for surface offsets, subsurfaces, and CSD layout.
+                    int dst_w = static_cast<int>(data.visual_size.x);
+                    int dst_h = static_cast<int>(data.visual_size.y);
+                    if (dst_w < 1) dst_w = 1;
+                    if (dst_h < 1) dst_h = 1;
+                    wlr_scene_buffer_set_dest_size(scene_buffer, dst_w, dst_h);
                 }
             }
-            wlr_scene_node_set_position(data.surface_node, 0, 0);
         }
 
         // Update dirty tracking (track last committed visual state)
