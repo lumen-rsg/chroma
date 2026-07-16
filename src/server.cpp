@@ -151,6 +151,18 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // Session lock (for screen locking)
+    if (!wlr_session_lock_manager_v1_create(display)) {
+        std::fprintf(stderr, "Failed to create session-lock-manager\n");
+        // non-fatal
+    }
+
+    // Security context (for Flatpak/snap sandboxing)
+    if (!wlr_security_context_manager_v1_create(display)) {
+        std::fprintf(stderr, "Failed to create security-context-manager\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);

@@ -40,6 +40,8 @@ extern "C" {
 #include <wlr/types/wlr_output_management_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_idle_notify_v1.h>
+#include <wlr/types/wlr_session_lock_v1.h>
+#include <wlr/types/wlr_security_context_v1.h>
 }
 
 namespace chroma {
