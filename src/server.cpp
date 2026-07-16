@@ -67,6 +67,13 @@ bool WlrootsServer::init() {
         // non-fatal
     }
 
+    // XDG decoration (so clients can negotiate CSD/SSD mode)
+    xdg_decoration_mgr = wlr_xdg_decoration_manager_v1_create(display);
+    if (!xdg_decoration_mgr) {
+        std::fprintf(stderr, "Failed to create XDG decoration manager\n");
+        // non-fatal
+    }
+
     // Listen for backend events — these will fire when start_backend() is called
     on_new_output.notify = handle_new_output;
     wl_signal_add(&backend->events.new_output, &on_new_output);

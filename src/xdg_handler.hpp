@@ -39,9 +39,11 @@ private:
 
     wl_listener on_new_toplevel_;
     wl_listener on_new_popup_;
+    wl_listener on_new_toplevel_decoration_;
 
     static void handle_new_toplevel(wl_listener* listener, void* data);
     static void handle_new_popup(wl_listener* listener, void* data);
+    static void handle_new_toplevel_decoration(wl_listener* listener, void* data);
 
     void on_destroy(ToplevelData* td);
 

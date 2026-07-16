@@ -40,6 +40,7 @@ XdgShellHandler::XdgShellHandler(WlrootsServer* server, Canvas* canvas)
 {
     wl_list_init(&on_new_toplevel_.link);
     wl_list_init(&on_new_popup_.link);
+    wl_list_init(&on_new_toplevel_decoration_.link);
 }
 
 XdgShellHandler::~XdgShellHandler() {
@@ -62,6 +63,11 @@ XdgShellHandler::~XdgShellHandler() {
     // Remove our listeners from xdg_shell to prevent assertion on shutdown
     wl_list_remove(&on_new_toplevel_.link);
     wl_list_remove(&on_new_popup_.link);
+
+    // Remove decoration listener if connected
+    if (server_->xdg_decoration_mgr) {
+        wl_list_remove(&on_new_toplevel_decoration_.link);
+    }
 }
 
 void XdgShellHandler::connect() {
@@ -70,6 +76,12 @@ void XdgShellHandler::connect() {
 
     on_new_popup_.notify = handle_new_popup;
     wl_signal_add(&server_->xdg_shell->events.new_popup, &on_new_popup_);
+
+    if (server_->xdg_decoration_mgr) {
+        on_new_toplevel_decoration_.notify = handle_new_toplevel_decoration;
+        wl_signal_add(&server_->xdg_decoration_mgr->events.new_toplevel_decoration,
+                      &on_new_toplevel_decoration_);
+    }
 }
 
 wlr_xdg_toplevel* XdgShellHandler::toplevel_for(WindowId id) const {
@@ -209,6 +221,16 @@ void XdgShellHandler::handle_new_popup(wl_listener* listener, void* data) {
     (void)handler;
     (void)popup;
     std::printf("[chroma] New popup\n");
+}
+
+void XdgShellHandler::handle_new_toplevel_decoration(wl_listener* listener, void* data) {
+    XdgShellHandler* handler = wl_container_of(listener, handler, on_new_toplevel_decoration_);
+    auto* decor = static_cast<wlr_xdg_toplevel_decoration_v1*>(data);
+    (void)handler;
+
+    // Always request client-side decorations (CSD) — we don't draw SSD yet
+    wlr_xdg_toplevel_decoration_v1_set_mode(decor,
+        WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
 }
 
 // ============================================================================
