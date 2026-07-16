@@ -44,6 +44,7 @@ extern "C" {
 #include <wlr/types/wlr_security_context_v1.h>
 #include <wlr/types/wlr_relative_pointer_v1.h>
 #include <wlr/types/wlr_pointer_constraints_v1.h>
+#include <wlr/types/wlr_virtual_keyboard_v1.h>
 }
 
 namespace chroma {
