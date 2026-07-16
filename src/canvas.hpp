@@ -112,6 +112,10 @@ public:
     GroupId next_group_id();
     StackId next_stack_id();
 
+    /// Return the next default canvas position for a new window,
+    /// advancing the internal counter (cascade layout).
+    Vec2 next_default_position();
+
 private:
     std::unordered_map<WindowId, ChromaWindow> windows_;
     std::unordered_map<GroupId, WindowGroup> groups_;
@@ -124,6 +128,10 @@ private:
     WindowId next_wid_{1};
     GroupId  next_gid_{1};
     StackId  next_sid_{1};
+
+    /// Default-placement cursor: each new window cascades diagonally.
+    Vec2 next_default_pos_{-400, -300};
+    static constexpr Vec2 default_offset_{50, 50};
 };
 
 } // namespace chroma

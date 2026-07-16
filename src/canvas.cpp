@@ -78,6 +78,10 @@ WindowId Canvas::add(ChromaWindow window) {
         id = next_window_id();
         window.id = id;
     }
+    // Assign a default cascading position if none was set by the caller.
+    if (window.canvas_pos.x == 0.0f && window.canvas_pos.y == 0.0f) {
+        window.canvas_pos = next_default_position();
+    }
     windows_[id] = std::move(window);
     z_order_.push_back(id);  // new windows go on top
     return id;
@@ -252,5 +256,13 @@ const WindowGroup* Canvas::get_group(GroupId id) const {
 WindowId Canvas::next_window_id() { return next_wid_++; }
 GroupId  Canvas::next_group_id()  { return next_gid_++; }
 StackId  Canvas::next_stack_id()  { return next_sid_++; }
+
+Vec2 Canvas::next_default_position() {
+    Vec2 pos = next_default_pos_;
+    next_default_pos_ = next_default_pos_ + default_offset_;
+    if (next_default_pos_.x > 800.0f) next_default_pos_ = {-400, next_default_pos_.y + 300};
+    if (next_default_pos_.y > 600.0f) next_default_pos_ = {-400, -300};
+    return pos;
+}
 
 } // namespace chroma
