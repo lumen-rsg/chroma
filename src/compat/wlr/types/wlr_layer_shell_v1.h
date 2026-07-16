@@ -86,6 +86,7 @@ struct wlr_layer_surface_v1 {
 	struct wlr_layer_shell_v1 *shell;
 	struct wl_list popups; // wlr_xdg_popup.link
 
+	// PATCHED: renamed from 'namespace' — C++ reserved word, hard compilation error
 	char *name_space;
 
 	bool configured;

@@ -454,6 +454,7 @@ void wlr_scene_surface_send_frame_done(struct wlr_scene_surface *scene_surface,
  *
  * The color argument must be a premultiplied color value.
  */
+// PATCHED: removed [static 4] — C99 static array declarator, not valid C++20
 struct wlr_scene_rect *wlr_scene_rect_create(struct wlr_scene_tree *parent,
 		int width, int height, const float color[4]);
 
@@ -467,6 +468,7 @@ void wlr_scene_rect_set_size(struct wlr_scene_rect *rect, int width, int height)
  *
  * The color argument must be a premultiplied color value.
  */
+// PATCHED: removed [static 4] — C99 static array declarator, not valid C++20
 void wlr_scene_rect_set_color(struct wlr_scene_rect *rect, const float color[4]);
 
 /**

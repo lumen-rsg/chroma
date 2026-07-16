@@ -145,6 +145,7 @@ struct wlr_color_transform *wlr_color_transform_init_lut_3x1d(size_t dim,
  * Initialize a color transformation to apply a 3×3 matrix. Returns NULL on
  * failure.
  */
+// PATCHED: removed [static 9] — C99 static array declarator, not valid C++20
 struct wlr_color_transform *wlr_color_transform_init_matrix(const float matrix[9]);
 
 /**
@@ -168,6 +169,7 @@ void wlr_color_transform_unref(struct wlr_color_transform *tr);
 /**
  * Evaluate a color transform for a given RGB triplet.
  */
+// PATCHED: removed [static 3] — C99 static array declarator, not valid C++20
 void wlr_color_transform_eval(struct wlr_color_transform *tr,
 	float out[3], const float in[3]);
 
@@ -180,6 +182,7 @@ void wlr_color_primaries_from_named(struct wlr_color_primaries *out,
 /**
  * Compute the matrix to convert between two linear RGB color spaces
  */
+// PATCHED: removed [static 9] — C99 static array declarator, not valid C++20
 void wlr_color_primaries_transform_absolute_colorimetric(
 	const struct wlr_color_primaries *source,
 	const struct wlr_color_primaries *destination, float matrix[9]);
