@@ -74,6 +74,9 @@ private:
     wlr_keyboard* keyboard_{nullptr};
     uint32_t modifier_state_{0};
 
+    // Touch state
+    wlr_touch* touch_{nullptr};
+
     bool listeners_connected_{false};  // guards destructor cleanup
 
     // Listeners
@@ -91,6 +94,12 @@ private:
     wl_listener on_cursor_button_;
     wl_listener on_cursor_axis_;
     wl_listener on_cursor_frame_;
+
+    // Touch listeners
+    wl_listener on_touch_down_;
+    wl_listener on_touch_up_;
+    wl_listener on_touch_motion_;
+    wl_listener on_touch_cancel_;
 
     static void handle_new_input(wl_listener* listener, void* data);
     void attach_input_device(wlr_input_device* device);
@@ -113,6 +122,12 @@ private:
     static void handle_cursor_button(wl_listener* listener, void* data);
     static void handle_cursor_axis(wl_listener* listener, void* data);
     static void handle_cursor_frame(wl_listener* listener, void* data);
+
+    // Touch handlers
+    static void handle_touch_down(wl_listener* listener, void* data);
+    static void handle_touch_up(wl_listener* listener, void* data);
+    static void handle_touch_motion(wl_listener* listener, void* data);
+    static void handle_touch_cancel(wl_listener* listener, void* data);
 
     void process_key(uint32_t keysym, bool pressed);
     void process_button(uint32_t button, bool pressed);

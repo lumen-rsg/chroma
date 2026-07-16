@@ -21,6 +21,7 @@ extern "C" {
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_pointer.h>
+#include <wlr/types/wlr_touch.h>
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_data_device.h>

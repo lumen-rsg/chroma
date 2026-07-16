@@ -26,6 +26,10 @@ SeatManager::SeatManager(WlrootsServer* server, Canvas* canvas, FocusTracker* fo
     wl_list_init(&on_cursor_button_.link);
     wl_list_init(&on_cursor_axis_.link);
     wl_list_init(&on_cursor_frame_.link);
+    wl_list_init(&on_touch_down_.link);
+    wl_list_init(&on_touch_up_.link);
+    wl_list_init(&on_touch_motion_.link);
+    wl_list_init(&on_touch_cancel_.link);
 }
 
 SeatManager::~SeatManager() {
@@ -45,6 +49,10 @@ SeatManager::~SeatManager() {
     wl_list_remove(&on_cursor_button_.link);
     wl_list_remove(&on_cursor_axis_.link);
     wl_list_remove(&on_cursor_frame_.link);
+    wl_list_remove(&on_touch_down_.link);
+    wl_list_remove(&on_touch_up_.link);
+    wl_list_remove(&on_touch_motion_.link);
+    wl_list_remove(&on_touch_cancel_.link);
 }
 
 void SeatManager::connect() {
@@ -173,6 +181,26 @@ void SeatManager::attach_input_device(wlr_input_device* device) {
         wlr_cursor_attach_input_device(server_->cursor, device);
         break;
     }
+    case WLR_INPUT_DEVICE_TOUCH: {
+        auto* touch = wlr_touch_from_input_device(device);
+        wlr_cursor_attach_input_device(server_->cursor, device);
+        on_touch_down_.notify = handle_touch_down;
+        wl_signal_add(&touch->events.down, &on_touch_down_);
+        on_touch_up_.notify = handle_touch_up;
+        wl_signal_add(&touch->events.up, &on_touch_up_);
+        on_touch_motion_.notify = handle_touch_motion;
+        wl_signal_add(&touch->events.motion, &on_touch_motion_);
+        on_touch_cancel_.notify = handle_touch_cancel;
+        wl_signal_add(&touch->events.cancel, &on_touch_cancel_);
+        touch_ = touch;
+        std::printf("[chroma] Touch device attached\n");
+        break;
+    }
+    case WLR_INPUT_DEVICE_TABLET:
+    case WLR_INPUT_DEVICE_TABLET_PAD:
+    case WLR_INPUT_DEVICE_SWITCH:
+        std::printf("[chroma] Input device type not yet supported (ignored)\n");
+        break;
     default: break;
     }
 }
@@ -525,6 +553,69 @@ void SeatManager::apply_resize(Vec2 delta) {
 
     win->canvas_pos = r.pos;
     win->size = r.size;
+}
+
+// ============================================================================
+// Touch handlers
+// ============================================================================
+
+void SeatManager::handle_touch_down(wl_listener* listener, void* data) {
+    SeatManager* self = wl_container_of(listener, self, on_touch_down_);
+    auto* event = static_cast<wlr_touch_down_event*>(data);
+
+    // Convert normalized (0..1) coords to screen-space
+    Vec2 screen_size = self->active_output_size();
+    double screen_x = event->x * screen_size.x;
+    double screen_y = event->y * screen_size.y;
+
+    // Notify the seat — surface-local coordinates come from scene hit test
+    double sx = 0, sy = 0;
+    wlr_surface* surface = nullptr;
+    wlr_scene_node* node = wlr_scene_node_at(
+        &self->server_->scene->tree.node, screen_x, screen_y, &sx, &sy);
+    if (node) {
+        auto* scene_buffer = wlr_scene_buffer_from_node(node);
+        if (scene_buffer) {
+            auto* scene_surface = wlr_scene_surface_try_from_buffer(scene_buffer);
+            if (scene_surface) {
+                surface = scene_surface->surface;
+            }
+        }
+    }
+
+    wlr_seat_touch_notify_down(self->server_->seat, surface,
+        event->time_msec, event->touch_id, sx, sy);
+}
+
+void SeatManager::handle_touch_up(wl_listener* listener, void* data) {
+    SeatManager* self = wl_container_of(listener, self, on_touch_up_);
+    auto* event = static_cast<wlr_touch_up_event*>(data);
+    wlr_seat_touch_notify_up(self->server_->seat,
+        event->time_msec, event->touch_id);
+}
+
+void SeatManager::handle_touch_motion(wl_listener* listener, void* data) {
+    SeatManager* self = wl_container_of(listener, self, on_touch_motion_);
+    auto* event = static_cast<wlr_touch_motion_event*>(data);
+
+    Vec2 screen_size = self->active_output_size();
+    double screen_x = event->x * screen_size.x;
+    double screen_y = event->y * screen_size.y;
+
+    double sx = 0, sy = 0;
+    wlr_scene_node* node = wlr_scene_node_at(
+        &self->server_->scene->tree.node, screen_x, screen_y, &sx, &sy);
+    (void)node; // sx,sy already filled by wlr_scene_node_at
+
+    wlr_seat_touch_notify_motion(self->server_->seat,
+        event->time_msec, event->touch_id, sx, sy);
+}
+
+void SeatManager::handle_touch_cancel(wl_listener* listener, void* data) {
+    SeatManager* self = wl_container_of(listener, self, on_touch_cancel_);
+    auto* event = static_cast<wlr_touch_cancel_event*>(data);
+    (void)event;
+    wlr_seat_touch_notify_cancel(self->server_->seat, nullptr);
 }
 
 } // namespace chroma

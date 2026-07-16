@@ -150,7 +150,8 @@ bool WlrootsServer::init_seat() {
 
     // Advertise keyboard and pointer support so clients bind the protocols
     wlr_seat_set_capabilities(seat,
-        WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER);
+        WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER |
+        WL_SEAT_CAPABILITY_TOUCH);
 
     cursor = wlr_cursor_create();
     if (!cursor) {
