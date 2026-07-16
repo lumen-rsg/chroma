@@ -78,8 +78,9 @@ bool ChromaApp::init() {
     }
 
     // Set up a background color for the scene
+    // Use a very large rect so it covers any display size (up to 16K).
     float bg_color[4] = {0.08f, 0.08f, 0.10f, 1.0f};
-    wlr_scene_rect_create(&server_.scene->tree, 1920, 1080, bg_color);
+    wlr_scene_rect_create(&server_.scene->tree, 16384, 16384, bg_color);
 
     std::printf("[chroma] Initialization complete.\n");
     std::printf("[chroma] WAYLAND_DISPLAY=%s\n", getenv("WAYLAND_DISPLAY"));
