@@ -51,6 +51,7 @@ private:
     XdgShellHandler* xdg_handler_{nullptr};
 
     Vec2 cursor_pos_{0, 0};
+    WindowId prev_focused_{INVALID_WINDOW};  // tracks last keyboard focus target
     
     // Viewport panning (Alt+drag)
     bool viewport_dragging_{false};

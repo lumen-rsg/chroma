@@ -54,7 +54,7 @@ void SceneRenderer::on_window_mapped(WindowId id, wlr_surface* surface) {
     if (surface) {
         // Create a scene buffer for the surface
         auto* scene_surface = wlr_scene_surface_create(data.tree, surface);
-        if (scene_surface) {
+        if (scene_surface && scene_surface->buffer) {
             data.surface_node = &scene_surface->buffer->node;
         }
     }

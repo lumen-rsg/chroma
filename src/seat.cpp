@@ -81,17 +81,16 @@ void SeatManager::update_keyboard_focus(XdgShellHandler* xdg_handler) {
     WindowId focused = focus_->current();
     
     // Skip if focus hasn't changed
-    static WindowId prev_focused = INVALID_WINDOW;
-    if (focused == prev_focused) return;
+    if (focused == prev_focused_) return;
     
     // Deactivate previously focused window
-    if (prev_focused != INVALID_WINDOW) {
+    if (prev_focused_ != INVALID_WINDOW) {
         if (auto* tl = xdg_handler->toplevel_for(prev_focused)) {
             wlr_xdg_toplevel_set_activated(tl, false);
             wlr_xdg_surface_schedule_configure(tl->base);
         }
     }
-    prev_focused = focused;
+    prev_focused_ = focused;
     
     if (focused == INVALID_WINDOW) {
         std::fprintf(stderr, "[chroma] KB focus: clear\n");
