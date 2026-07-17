@@ -40,6 +40,19 @@ public:
 
     /// Callback invoked when keyboard focus changes (for foreign-toplevel, etc.).
     std::function<void(WindowId)> on_focus_changed;
+
+    /// Optional callback: if set and returns true, the seat manager will NOT
+    /// change keyboard focus to an XDG window (an exclusive layer surface
+    /// like wofi/rofi currently owns the keyboard).
+    std::function<bool()> on_check_exclusive_focus;
+
+    /// Optional callback: returns the wlr_surface of the topmost exclusive
+    /// layer surface that should receive pointer events, or nullptr.
+    std::function<wlr_surface*()> on_get_exclusive_surface;
+
+    /// Optional callback: returns the screen-space position (top-left) of
+    /// the exclusive layer surface. Used to compute surface-local coords.
+    std::function<Vec2()> on_get_exclusive_surface_pos;
     
     /// Detect which resize edge(s) the cursor is near on a window rect.
     static uint32_t detect_resize_edge(const Rect& win_rect, Vec2 cursor_canvas, int margin);

@@ -11,27 +11,91 @@ SceneRenderer::SceneRenderer(WlrootsServer* server, Canvas* canvas,
 {}
 
 // ============================================================================
+// Config access helpers
+// ============================================================================
+
+/// Get shadow layer count from config (or default).
+static int cfg_shadow_layers(const ChromaConfig* cfg) {
+    if (cfg) return cfg->theme.shadow_layers;
+    return 4;
+}
+
+/// Get shadow alphas from config (or default).
+static const float* cfg_shadow_alphas(const ChromaConfig* cfg) {
+    static const float defaults[] = {0.18f, 0.12f, 0.07f, 0.03f};
+    if (cfg) return cfg->theme.shadow_alphas;
+    return defaults;
+}
+
+/// Get shadow offset x from config.
+static float cfg_shadow_off_x(const ChromaConfig* cfg) {
+    if (cfg) return cfg->theme.shadow_offset_x;
+    return 2.0f;
+}
+
+/// Get shadow offset y from config.
+static float cfg_shadow_off_y(const ChromaConfig* cfg) {
+    if (cfg) return cfg->theme.shadow_offset_y;
+    return 2.0f;
+}
+
+/// Get shadow grow from config.
+static float cfg_shadow_grow(const ChromaConfig* cfg) {
+    if (cfg) return cfg->theme.shadow_grow;
+    return 4.0f;
+}
+
+/// Get border width from config.
+static int cfg_border_width(const ChromaConfig* cfg) {
+    if (cfg) return cfg->theme.border_width;
+    return 1;
+}
+
+/// Get animation duration from config (or default).
+static float cfg_anim(const ChromaConfig* cfg, float AnimationConfig::* field, float def) {
+    if (cfg) return cfg->animations.*field;
+    return def;
+}
+
+/// Get input config value.
+static float cfg_input(const ChromaConfig* cfg, float InputConfig::* field, float def) {
+    if (cfg) return cfg->input.*field;
+    return def;
+}
+
+// ============================================================================
 // Shadow helpers
 // ============================================================================
 
 void SceneRenderer::create_shadows(WindowSceneData& data, wlr_scene_tree* parent) {
-    // Shadow alpha values: innermost (darkest) to outermost (faintest)
-    static const float shadow_alphas[] = {0.18f, 0.12f, 0.07f, 0.03f};
-    
-    for (int i = 0; i < config::SHADOW_LAYERS; i++) {
-        float color[4] = {0.0f, 0.0f, 0.0f, shadow_alphas[i]};
+    int layers = cfg_shadow_layers(config_);
+    const float* alphas = cfg_shadow_alphas(config_);
+
+    for (int i = 0; i < layers && i < 4; i++) {
+        float color[4] = {0.0f, 0.0f, 0.0f, alphas[i]};
         data.shadow_rects[i] = wlr_scene_rect_create(parent, 0, 0, color);
         if (data.shadow_rects[i]) {
-            // Shadows go behind everything, including the bg_rect
             wlr_scene_node_lower_to_bottom(&data.shadow_rects[i]->node);
         }
+    }
+    // Clear any unused shadow rect slots
+    for (int i = layers; i < 4; i++) {
+        data.shadow_rects[i] = nullptr;
     }
 }
 
 void SceneRenderer::create_borders(WindowSceneData& data, wlr_scene_tree* parent) {
-    // Default unfocused color, full alpha
-    float color[4] = {0.15f, 0.15f, 0.18f, 1.0f};
-    
+    // Default unfocused color
+    float color[4];
+    if (config_) {
+        color[0] = config_->theme.border_unfocused[0];
+        color[1] = config_->theme.border_unfocused[1];
+        color[2] = config_->theme.border_unfocused[2];
+        color[3] = config_->theme.border_unfocused[3];
+    } else {
+        color[0] = 0.15f; color[1] = 0.15f; color[2] = 0.18f; color[3] = 1.0f;
+    }
+
     data.border_top    = wlr_scene_rect_create(parent, 0, 0, color);
     data.border_bottom = wlr_scene_rect_create(parent, 0, 0, color);
     data.border_left   = wlr_scene_rect_create(parent, 0, 0, color);
@@ -39,78 +103,85 @@ void SceneRenderer::create_borders(WindowSceneData& data, wlr_scene_tree* parent
 }
 
 void SceneRenderer::update_shadows(WindowSceneData& data) {
-    // Each shadow layer is offset progressively further and grows larger,
-    // creating a soft, directional drop-shadow effect.
-    //
-    // Shadows are only visible during open/close animations (as a fade effect).
-    // At steady state we hide them — they would bleed through the transparent
-    // drop-shadow regions that CSD clients draw in their own buffers.
     bool animating = data.open_anim.active || data.close_anim.active;
     float alpha = animating ? data.visual_opacity : 0.0f;
-    
-    for (int i = 0; i < config::SHADOW_LAYERS; i++) {
+
+    int layers = cfg_shadow_layers(config_);
+    float off_x = cfg_shadow_off_x(config_);
+    float off_y = cfg_shadow_off_y(config_);
+    float grow = cfg_shadow_grow(config_);
+    const float* alphas = cfg_shadow_alphas(config_);
+
+    for (int i = 0; i < layers && i < 4; i++) {
         if (!data.shadow_rects[i]) continue;
-        
-        // Progressive offset and expansion per layer
-        float off_x = config::SHADOW_OFFSET_X * (i + 1);
-        float off_y = config::SHADOW_OFFSET_Y * (i + 1);
-        float grow = config::SHADOW_GROW * (i + 1);
-        
-        int sw = static_cast<int>(data.visual_size.x + grow * 2);
-        int sh = static_cast<int>(data.visual_size.y + grow * 2);
-        
+
+        float loff_x = off_x * (i + 1);
+        float loff_y = off_y * (i + 1);
+        float lgrow = grow * (i + 1);
+
+        int sw = static_cast<int>(data.visual_size.x + lgrow * 2);
+        int sh = static_cast<int>(data.visual_size.y + lgrow * 2);
+
         if (sw < 0) sw = 0;
         if (sh < 0) sh = 0;
-        
+
         wlr_scene_node_set_position(&data.shadow_rects[i]->node,
-            static_cast<int>(off_x - grow),
-            static_cast<int>(off_y - grow));
-        
+            static_cast<int>(loff_x - lgrow),
+            static_cast<int>(loff_y - lgrow));
+
         wlr_scene_rect_set_size(data.shadow_rects[i], sw, sh);
-        
-        // Fade shadows with visual_opacity
-        float base_alpha = (i == 0) ? 0.18f : (i == 1) ? 0.12f : (i == 2) ? 0.07f : 0.03f;
+
+        float base_alpha = (i < 4) ? alphas[i] : 0.03f;
         float color[4] = {0.0f, 0.0f, 0.0f, base_alpha * alpha};
         wlr_scene_rect_set_color(data.shadow_rects[i], color);
     }
 }
 
 void SceneRenderer::update_borders(WindowSceneData& data, bool focused) {
-    constexpr int BW = 1;  // border thickness in screen pixels
-    
+    int BW = cfg_border_width(config_);
+    if (BW < 0) BW = 0;
+
     float color[4];
-    if (focused) {
-        // Vibrant purple, semi-transparent
-        color[0] = 0.38f; color[1] = 0.30f; color[2] = 0.60f; color[3] = 0.85f;
+    if (config_) {
+        if (focused) {
+            color[0] = config_->theme.border_focused[0];
+            color[1] = config_->theme.border_focused[1];
+            color[2] = config_->theme.border_focused[2];
+            color[3] = config_->theme.border_focused[3];
+        } else {
+            color[0] = config_->theme.border_unfocused[0];
+            color[1] = config_->theme.border_unfocused[1];
+            color[2] = config_->theme.border_unfocused[2];
+            color[3] = config_->theme.border_unfocused[3];
+        }
     } else {
-        // Subtle dark, semi-transparent
-        color[0] = 0.18f; color[1] = 0.18f; color[2] = 0.22f; color[3] = 0.60f;
+        if (focused) {
+            color[0] = 0.38f; color[1] = 0.30f; color[2] = 0.60f; color[3] = 0.85f;
+        } else {
+            color[0] = 0.18f; color[1] = 0.18f; color[2] = 0.22f; color[3] = 0.60f;
+        }
     }
-    
+
     int w = static_cast<int>(data.visual_size.x);
     int h = static_cast<int>(data.visual_size.y);
     if (w < 1) w = 1;
     if (h < 1) h = 1;
-    
-    // Top edge — sits above the window
+
     if (data.border_top) {
         wlr_scene_node_set_position(&data.border_top->node, 0, -BW);
         wlr_scene_rect_set_size(data.border_top, w, BW);
         wlr_scene_rect_set_color(data.border_top, color);
     }
-    // Bottom edge — sits below the window
     if (data.border_bottom) {
         wlr_scene_node_set_position(&data.border_bottom->node, 0, h);
         wlr_scene_rect_set_size(data.border_bottom, w, BW);
         wlr_scene_rect_set_color(data.border_bottom, color);
     }
-    // Left edge — sits to the left of the window
     if (data.border_left) {
         wlr_scene_node_set_position(&data.border_left->node, -BW, 0);
         wlr_scene_rect_set_size(data.border_left, BW, h);
         wlr_scene_rect_set_color(data.border_left, color);
     }
-    // Right edge — sits to the right of the window
     if (data.border_right) {
         wlr_scene_node_set_position(&data.border_right->node, w, 0);
         wlr_scene_rect_set_size(data.border_right, BW, h);
@@ -133,25 +204,16 @@ void SceneRenderer::on_window_added(WindowId id, wlr_surface* /*surface*/) {
     data.window_id = id;
     data.tree = tree;
     data.surface_node = nullptr;
-    data.visual_opacity = 0.0f;  // start transparent for open animation
+    data.visual_opacity = 0.0f;
 
-    // Create shadows first (they go behind everything)
     create_shadows(data, tree);
-
-    // Create border outlines (positioned outside the window area,
-    // so they never overlap the surface buffer — no CSD bleed-through)
     create_borders(data, tree);
 
-    // Create background rect with unfocused default color.
-    // Created after shadows so it renders on top of them naturally
-    // (wlr_scene_tree children render in creation order, last = topmost).
+    // Background rect
     float border_color[4] = {0.15f, 0.15f, 0.18f, 0.0f};
     data.bg_rect = wlr_scene_rect_create(tree, 0, 0, border_color);
 
-    // Initialize visual state from the window's canvas position (if available)
     if (auto* win = canvas_->get(id)) {
-        // We don't have screen_size here, so use a reasonable default
-        // The real visual state will be set on first render_frame
         data.open_origin = win->center();
     }
 
@@ -164,10 +226,8 @@ void SceneRenderer::on_window_mapped(WindowId id, wlr_surface* surface) {
 
     auto& data = it->second;
 
-    // Cancel any close animation
     data.close_anim.stop();
 
-    // Remove previous surface node if any
     if (data.surface_node) {
         wlr_scene_node_destroy(data.surface_node);
         data.surface_node = nullptr;
@@ -180,11 +240,11 @@ void SceneRenderer::on_window_mapped(WindowId id, wlr_surface* surface) {
         }
     }
 
-    // Start open animation
-    data.open_anim.start(config::ANIM_OPEN_DURATION);
+    // Start open animation (use config duration)
+    float dur = cfg_anim(config_, &AnimationConfig::open_duration, 0.25f);
+    data.open_anim.start(dur);
     data.visual_opacity = 0.0f;
-    
-    // Record the open origin (window center in screen space will be set on first frame)
+
     if (auto* win = canvas_->get(id)) {
         data.open_origin = win->center();
     }
@@ -198,12 +258,11 @@ void SceneRenderer::on_window_unmapped(WindowId id) {
 
     auto& data = it->second;
 
-    // Cancel any open animation
     data.open_anim.stop();
 
-    // Start close animation (only if not already closing)
     if (!data.close_anim.active) {
-        data.close_anim.start(config::ANIM_CLOSE_DURATION);
+        float dur = cfg_anim(config_, &AnimationConfig::close_duration, 0.18f);
+        data.close_anim.start(dur);
     }
 }
 
@@ -211,7 +270,6 @@ void SceneRenderer::on_window_removed(WindowId id) {
     auto it = scene_data_.find(id);
     if (it == scene_data_.end()) return;
 
-    // Always destroy scene nodes immediately — the toplevel is gone.
     wlr_scene_node_destroy(&it->second.tree->node);
     scene_data_.erase(it);
 }
@@ -219,11 +277,8 @@ void SceneRenderer::on_window_removed(WindowId id) {
 void SceneRenderer::trigger_jiggle(WindowId id, Vec2 impact_direction) {
     auto it = scene_data_.find(id);
     if (it == scene_data_.end()) return;
-    // Convert canvas-space impact to a screen-space velocity impulse.
-    // The jiggle is purely visual so screen-space units are correct.
     float mag = impact_direction.length();
     if (mag < 0.01f) return;
-    // Scale by zoom so the impulse magnitude matches what the user sees
     Vec2 impulse = impact_direction.normalized() * std::min(mag * canvas_->zoom, 60.0f);
     it->second.jiggle.start(impulse);
 }
@@ -234,16 +289,13 @@ void SceneRenderer::trigger_jiggle(WindowId id, Vec2 impact_direction) {
 
 void SceneRenderer::tick_animations(float dt) {
     for (auto& [id, data] : scene_data_) {
-        // Tick open animation
         if (data.open_anim.active) {
             data.open_anim.tick(dt);
             if (!data.open_anim.active) {
-                // Animation complete — snap to full opacity and let visual catch up
                 data.visual_opacity = 1.0f;
             }
         }
 
-        // Tick close animation
         if (data.close_anim.active) {
             data.close_anim.tick(dt);
         }
@@ -260,9 +312,6 @@ bool SceneRenderer::has_active_animations() const {
 }
 
 void SceneRenderer::sync_scene_z_order() {
-    // Walk the domain Z-order from bottom (index 0) to top (back()).
-    // Repeatedly raising each node to top builds the correct stacking order
-    // in the wlr_scene tree so it matches the domain model.
     const auto& z_order = canvas_->z_order();
     for (WindowId id : z_order) {
         auto it = scene_data_.find(id);
@@ -270,6 +319,23 @@ void SceneRenderer::sync_scene_z_order() {
             wlr_scene_node_raise_to_top(&it->second.tree->node);
         }
     }
+
+    // Re-raise overlay trees above all windows so panels, launchers
+    // (wofi, waybar, etc.) always render on top.
+    for (auto* tree : overlay_trees_) {
+        if (tree) {
+            wlr_scene_node_raise_to_top(&tree->node);
+        }
+    }
+}
+
+void SceneRenderer::register_overlay_tree(wlr_scene_tree* tree) {
+    if (!tree) return;
+    // Avoid duplicates
+    for (auto* existing : overlay_trees_) {
+        if (existing == tree) return;
+    }
+    overlay_trees_.push_back(tree);
 }
 
 // ============================================================================
@@ -279,31 +345,30 @@ void SceneRenderer::sync_scene_z_order() {
 void SceneRenderer::update_window_visuals(WindowSceneData& data, const ChromaWindow& win,
                                           Vec2 screen_size, float offset_x, float offset_y,
                                           float dt) {
-    // Tick the collision jiggle animation (visual-only position wobble)
     data.jiggle.tick(dt);
 
     Rect screen_rect = canvas_->canvas_to_screen(win.canvas_rect(), screen_size);
     Vec2 logical_pos{screen_rect.x() + offset_x, screen_rect.y() + offset_y};
     Vec2 logical_size{screen_rect.w(), screen_rect.h()};
 
+    float move_dur = cfg_anim(config_, &AnimationConfig::move_duration, 0.15f);
+    float resize_dur = cfg_anim(config_, &AnimationConfig::resize_duration, 0.20f);
+    float snap_thresh = cfg_anim(config_, &AnimationConfig::snap_threshold, 5.0f);
+
     // -- Open animation: scale up from center --
     if (data.open_anim.active) {
         float t = data.open_anim.progress();
         float eased = ease_out_back(t);
-        data.visual_opacity = eased;  // fade in borders + shadows
-        
-        // Scale from open_origin (screen-space center of the window)
-        // Start at 20% size, expand to 100%
+        data.visual_opacity = eased;
+
         float scale = 0.2f + 0.8f * eased;
-        
-        // Update open_origin to track the current logical center
-        // (so the animation follows the window if it moves during open)
+
         Vec2 logical_center = logical_pos + logical_size * 0.5f;
         data.open_origin = logical_center;
-        
+
         Vec2 scaled_size = logical_size * scale;
         Vec2 scaled_pos = data.open_origin - scaled_size * 0.5f;
-        
+
         data.visual_pos = scaled_pos;
         data.visual_size = scaled_size;
     }
@@ -311,60 +376,53 @@ void SceneRenderer::update_window_visuals(WindowSceneData& data, const ChromaWin
     else if (data.close_anim.active) {
         float t = data.close_anim.progress();
         float eased = ease_in_out_cubic(t);
-        data.visual_opacity = 1.0f - eased;  // fade out
-        
-        float scale = 1.0f - 0.85f * eased;  // shrink to 15%
-        
+        data.visual_opacity = 1.0f - eased;
+
+        float scale = 1.0f - 0.85f * eased;
+
         Vec2 logical_center = logical_pos + logical_size * 0.5f;
         Vec2 scaled_size = logical_size * scale;
         Vec2 scaled_pos = logical_center - scaled_size * 0.5f;
-        
+
         data.visual_pos = scaled_pos;
         data.visual_size = scaled_size;
     }
     // -- Smooth move/resize: lerp visual toward logical --
     else {
-        // Initialize visual state on first frame or after animation
         if (data.visual_pos.x < 0 || data.visual_size.x < 1.0f) {
             data.visual_pos = logical_pos;
             data.visual_size = logical_size;
             data.visual_opacity = 1.0f;
         }
-        
-        // Smooth position tracking with exponential decay
-        float move_t = 1.0f - std::exp(-0.016f / config::ANIM_MOVE_DURATION);  // ~60fps step
+
+        float move_t = 1.0f - std::exp(-0.016f / move_dur);
         Vec2 pos_delta = logical_pos - data.visual_pos;
-        if (pos_delta.length_squared() < config::ANIM_SNAP_THRESHOLD * config::ANIM_SNAP_THRESHOLD) {
+        if (pos_delta.length_squared() < snap_thresh * snap_thresh) {
             data.visual_pos = logical_pos;
         } else {
             data.visual_pos = chroma::lerp(data.visual_pos, logical_pos, move_t);
         }
-        
-        // Smooth size tracking
-        float resize_t = 1.0f - std::exp(-0.016f / config::ANIM_RESIZE_DURATION);
+
+        float resize_t = 1.0f - std::exp(-0.016f / resize_dur);
         Vec2 size_delta = logical_size - data.visual_size;
-        if (size_delta.length_squared() < config::ANIM_SNAP_THRESHOLD * config::ANIM_SNAP_THRESHOLD) {
+        if (size_delta.length_squared() < snap_thresh * snap_thresh) {
             data.visual_size = logical_size;
         } else {
             data.visual_size = chroma::lerp(data.visual_size, logical_size, resize_t);
         }
-        
-        // Opacity converges to 1.0
+
         if (data.visual_opacity < 0.995f) {
             data.visual_opacity = chroma::lerp(data.visual_opacity, 1.0f, move_t);
         } else {
             data.visual_opacity = 1.0f;
         }
 
-        // Track whether we still need animation frames for convergence
-        data.visual_converging = 
+        data.visual_converging =
             (data.visual_pos - logical_pos).length_squared() > 0.5f ||
             (data.visual_size - logical_size).length_squared() > 0.5f ||
             (data.visual_opacity < 0.998f && data.visual_opacity > 0.0f);
     }
 
-    // Apply collision jiggle offset (visual-only, does not affect canvas position).
-    // This adds a decaying bounce to the window's screen position after impact.
     if (data.jiggle.active()) {
         data.visual_pos = data.visual_pos + data.jiggle.offset;
     }
@@ -380,40 +438,34 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
         static_cast<float>(output->height)
     };
 
-    // Calculate delta time since last frame
+    // Delta time
     float dt = 0.0f;
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
     if (last_frame_time_.tv_sec != 0 || last_frame_time_.tv_nsec != 0) {
         dt = static_cast<float>(now.tv_sec - last_frame_time_.tv_sec) +
              static_cast<float>(now.tv_nsec - last_frame_time_.tv_nsec) / 1e9f;
-        if (dt < 0.0f) dt = 0.0f;   // clock skew guard
-        if (dt > 0.1f) dt = 0.1f;   // cap to avoid huge jumps after pause
+        if (dt < 0.0f) dt = 0.0f;
+        if (dt > 0.1f) dt = 0.1f;
     }
     last_frame_time_ = now;
 
-    // Tick all animations
     tick_animations(dt);
-
-    // Tick viewport animation (group jumps)
     canvas_->tick_viewport_animation(dt);
 
     bool any_animating = false;
 
-    // Render all windows: mapped ones + unmapped ones with active close animation
     for (const auto& [id, win] : canvas_->all_windows()) {
         auto it = scene_data_.find(id);
         if (it == scene_data_.end()) continue;
 
         auto& data = it->second;
 
-        // Skip unmapped windows unless they have an active close animation
         if (!win.mapped && !data.close_anim.active) continue;
 
-        // Mark this window for animation-driven frame scheduling
         if (data.is_animating() || data.visual_converging) any_animating = true;
 
-        // Calculate stack offset
+        // Stack offset
         float offset_x = 0.0f;
         float offset_y = 0.0f;
         if (win.stack != NO_STACK) {
@@ -430,49 +482,48 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
             }
         }
 
-        // Update visual state (handles open/close/smooth-move animations)
         update_window_visuals(data, win, screen_size, offset_x, offset_y, dt);
 
-        // --- Position the scene tree ---
         wlr_scene_node_set_position(&data.tree->node,
             static_cast<int>(data.visual_pos.x),
             static_cast<int>(data.visual_pos.y));
 
-        // --- Update shadows ---
         update_shadows(data);
-
-        // --- Update border outlines (outside window area, no CSD conflict) ---
         update_borders(data, win.focused);
 
-        // --- Update border/background rect ---
-        // The bg_rect serves as a fade overlay during open/close animations.
-        // At steady state it's invisible — CSD clients draw their own borders
-        // and our colored rect would bleed through their transparent shadow areas.
+        // Background rect
         if (data.bg_rect) {
             float color[4];
-            if (win.focused) {
-                color[0] = 0.30f; color[1] = 0.24f; color[2] = 0.50f;  // vibrant purple
+            if (config_) {
+                if (win.focused) {
+                    color[0] = config_->theme.border_focused[0] * 0.8f;
+                    color[1] = config_->theme.border_focused[1] * 0.8f;
+                    color[2] = config_->theme.border_focused[2] * 0.8f;
+                } else {
+                    color[0] = config_->theme.border_unfocused[0];
+                    color[1] = config_->theme.border_unfocused[1];
+                    color[2] = config_->theme.border_unfocused[2];
+                }
             } else {
-                color[0] = 0.15f; color[1] = 0.15f; color[2] = 0.18f;  // subtle dark
+                if (win.focused) {
+                    color[0] = 0.30f; color[1] = 0.24f; color[2] = 0.50f;
+                } else {
+                    color[0] = 0.15f; color[1] = 0.15f; color[2] = 0.18f;
+                }
             }
-            // Only show during animations; invisible at steady state
             color[3] = (data.open_anim.active || data.close_anim.active)
                            ? data.visual_opacity : 0.0f;
-            
+
             wlr_scene_rect_set_color(data.bg_rect, color);
             wlr_scene_rect_set_size(data.bg_rect,
                 static_cast<int>(data.visual_size.x),
                 static_cast<int>(data.visual_size.y));
         }
 
-        // --- Position and size the surface node ---
+        // Surface node
         if (data.surface_node && win.mapped) {
             auto* scene_buffer = wlr_scene_buffer_from_node(data.surface_node);
             if (scene_buffer) {
-                // Look up the XDG geometry for this window.  The geometry
-                // defines the content area within the surface buffer — for
-                // CSD clients this excludes titlebar, borders, and shadows;
-                // for SSD clients it equals the full surface size.
                 int geo_x = 0, geo_y = 0;
                 int geo_w = 0, geo_h = 0;
                 if (auto* toplevel = xdg_handler_->toplevel_for(id)) {
@@ -486,8 +537,6 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
                     }
                 }
 
-                // Build a source-box that crops the surface buffer to the
-                // content area, discarding any CSD decorations.
                 if (geo_w > 0 && geo_h > 0) {
                     struct wlr_fbox src_box = {
                         static_cast<float>(geo_x),
@@ -499,8 +548,6 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
                 }
 
                 if (data.open_anim.active || data.close_anim.active) {
-                    // During open/close: clip surface to the animated window
-                    // size and pin it at the tree origin for smooth scale-in/out.
                     int clip_w = static_cast<int>(data.visual_size.x);
                     int clip_h = static_cast<int>(data.visual_size.y);
                     if (clip_w < 1) clip_w = 1;
@@ -508,11 +555,6 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
                     wlr_scene_buffer_set_dest_size(scene_buffer, clip_w, clip_h);
                     wlr_scene_node_set_position(data.surface_node, 0, 0);
                 } else {
-                    // Steady state: scale surface to match the window's
-                    // screen-space size (needed for zoom to work correctly).
-                    // The source-box (set above) handles cropping CSD out.
-                    // Do NOT override the surface node position — wlroots
-                    // manages it internally for subsurface offsets.
                     int dst_w = static_cast<int>(data.visual_size.x);
                     int dst_h = static_cast<int>(data.visual_size.y);
                     if (dst_w < 1) dst_w = 1;
@@ -522,7 +564,6 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
             }
         }
 
-        // Update dirty tracking (track last committed visual state)
         data.last_screen_pos = data.visual_pos;
         data.last_screen_size = data.visual_size;
         data.last_stack_offset = {offset_x, offset_y};
@@ -530,23 +571,12 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
         data.was_focused = win.focused;
     }
 
-    // Synchronise wlr_scene node order with the domain Z-order so topmost
-    // windows in the Canvas render on top visually.
     sync_scene_z_order();
-
-    // Update group directional indicators (HUD arrows at screen edges)
     update_group_indicators(screen_size);
 
-    // Commit the scene to the output
     wlr_scene_output_commit(scene_output, nullptr);
-    
-    // Send frame_done to all surfaces
     wlr_scene_output_send_frame_done(scene_output, &now);
-    
-    // Schedule next frame if:
-    //   (a) wlr_scene has pending damage, OR
-    //   (b) any window has an active animation, OR
-    //   (c) viewport is animating (group jump)
+
     if (wlr_scene_output_needs_frame(scene_output) || any_animating ||
         has_active_animations() || canvas_->viewport_animating()) {
         wlr_output_schedule_frame(output);
@@ -562,17 +592,22 @@ WindowSceneData* SceneRenderer::get_scene_data(WindowId id) {
 // Group Indicator HUD
 // ============================================================================
 
-void SceneRenderer::group_color(size_t order_index, float alpha, float out_color[4]) {
-    // Deterministic palette: 6 distinct hues, cycling for >6 groups
-    static const float hues[6][3] = {
-        {0.95f, 0.45f, 0.20f},  // warm orange
-        {0.25f, 0.65f, 0.95f},  // sky blue
-        {0.40f, 0.80f, 0.35f},  // green
-        {0.85f, 0.35f, 0.75f},  // magenta
-        {0.95f, 0.85f, 0.15f},  // yellow
-        {0.30f, 0.75f, 0.80f},  // teal
-    };
-    const float* h = hues[order_index % 6];
+void SceneRenderer::group_color(const ChromaConfig* config, size_t order_index,
+                                 float alpha, float out_color[4]) {
+    const float* h;
+    if (config) {
+        h = config->theme.group_hues[order_index % 6];
+    } else {
+        static const float default_hues[6][3] = {
+            {0.95f, 0.45f, 0.20f},
+            {0.25f, 0.65f, 0.95f},
+            {0.40f, 0.80f, 0.35f},
+            {0.85f, 0.35f, 0.75f},
+            {0.95f, 0.85f, 0.15f},
+            {0.30f, 0.75f, 0.80f},
+        };
+        h = default_hues[order_index % 6];
+    }
     out_color[0] = h[0];
     out_color[1] = h[1];
     out_color[2] = h[2];
@@ -613,7 +648,6 @@ void SceneRenderer::update_group_indicators(Vec2 screen_size) {
         auto& node = indicator_nodes_[i];
         node.group_id = ind.group_id;
 
-        // Find group's order index for color
         const auto& order = canvas_->group_order();
         size_t order_idx = 0;
         for (size_t j = 0; j < order.size(); j++) {
@@ -624,60 +658,43 @@ void SceneRenderer::update_group_indicators(Vec2 screen_size) {
         }
 
         float base_color[4];
-        group_color(order_idx, ind.opacity, base_color);
+        group_color(config_, order_idx, ind.opacity, base_color);
 
-        float s = config::INDICATOR_SIZE;
+        float s = cfg_input(config_, &InputConfig::zoom_step, 0.0f);
+        s = 20.0f; // indicator size in screen px (could make configurable later)
         Vec2 pos = ind.screen_edge_pos;
         Vec2 dir = ind.direction;
 
-        // Build a chevron/triangle pointing toward the group.
-        // The direction vector points from viewport center to the group.
-        // At the screen edge, we draw an arrowhead pointing AWAY from the edge
-        // (i.e., in the same direction as `dir`).
-        //
-        // Three rects form the chevron:
-        //   piece[0] = center spike (long, thin, along dir)
-        //   piece[1] = left wing   (angled 45° left of dir)
-        //   piece[2] = right wing  (angled 45° right of dir)
-        //
-        // We use thin rects (2px wide) rotated via width/height orientation.
-        // Since wlr_scene_rect is axis-aligned, we simulate rotation by
-        // placing short rects at calculated offsets.
-
-        // Perpendicular vector for the chevron spread
-        Vec2 perp{-dir.y, dir.x};
-
-        // Center spike: a rect along `dir`
+        // Center dot
         {
             int cx = static_cast<int>(pos.x);
             int cy = static_cast<int>(pos.y);
-            // Draw as a diamond/dot at the edge position
             wlr_scene_node_set_position(&node.pieces[0]->node, cx - 3, cy - 3);
             wlr_scene_rect_set_size(node.pieces[0], 7, 7);
             wlr_scene_rect_set_color(node.pieces[0], base_color);
         }
 
-        // Left wing: offset perpendicular, then forward
+        // Left wing
         {
-            Vec2 wing_pos = pos + perp * s * 0.5f + dir * s * 0.4f;
+            Vec2 wing_pos = pos + Vec2{-dir.y, dir.x} * s * 0.5f + dir * s * 0.4f;
             int wx = static_cast<int>(wing_pos.x);
             int wy = static_cast<int>(wing_pos.y);
             wlr_scene_node_set_position(&node.pieces[1]->node, wx - 2, wy - 2);
             wlr_scene_rect_set_size(node.pieces[1], 5, 5);
             float wing_color[4];
-            group_color(order_idx, ind.opacity * 0.75f, wing_color);
+            group_color(config_, order_idx, ind.opacity * 0.75f, wing_color);
             wlr_scene_rect_set_color(node.pieces[1], wing_color);
         }
 
-        // Right wing: opposite perpendicular, then forward
+        // Right wing
         {
-            Vec2 wing_pos = pos - perp * s * 0.5f + dir * s * 0.4f;
+            Vec2 wing_pos = pos - Vec2{-dir.y, dir.x} * s * 0.5f + dir * s * 0.4f;
             int wx = static_cast<int>(wing_pos.x);
             int wy = static_cast<int>(wing_pos.y);
             wlr_scene_node_set_position(&node.pieces[2]->node, wx - 2, wy - 2);
             wlr_scene_rect_set_size(node.pieces[2], 5, 5);
             float wing_color[4];
-            group_color(order_idx, ind.opacity * 0.75f, wing_color);
+            group_color(config_, order_idx, ind.opacity * 0.75f, wing_color);
             wlr_scene_rect_set_color(node.pieces[2], wing_color);
         }
     }

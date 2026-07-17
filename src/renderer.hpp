@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.hpp"
 #include "server.hpp"
 #include "canvas.hpp"
 #include "stack.hpp"
@@ -19,7 +20,7 @@ struct WindowSceneData {
     wlr_scene_tree* tree;          // root node for this window
     wlr_scene_node* surface_node;   // the actual surface node (or nullptr if not mapped)
     wlr_scene_rect* bg_rect{nullptr};
-    
+
     // Multi-layer drop shadow (4 rects behind the window)
     wlr_scene_rect* shadow_rects[4]{nullptr, nullptr, nullptr, nullptr};
 
@@ -72,6 +73,13 @@ public:
     SceneRenderer(WlrootsServer* server, Canvas* canvas,
                   XdgShellHandler* xdg_handler, StackManager* stacks);
 
+    /// Set the runtime config for theme values.
+    void set_config(const ChromaConfig* config) { config_ = config; }
+
+    /// Register a scene tree that must always render on top of windows.
+    /// Call for layer-shell overlay and top trees (panels, launchers, etc.).
+    void register_overlay_tree(wlr_scene_tree* tree);
+
     /// Create a scene representation for a window. Call when a window is added.
     void on_window_added(WindowId id, wlr_surface* surface);
 
@@ -104,13 +112,14 @@ private:
     Canvas* canvas_;
     XdgShellHandler* xdg_handler_;
     StackManager* stacks_;
+    const ChromaConfig* config_{nullptr};
 
     std::unordered_map<WindowId, WindowSceneData> scene_data_;
 
     // Last frame timestamp for delta-time calculation.
     struct timespec last_frame_time_{0, 0};
 
-    /// Create shadow rects for a window.
+    /// Create shadow rects for a window (using config for layer count).
     void create_shadows(WindowSceneData& data, wlr_scene_tree* parent);
 
     /// Create border outline rects for a window.
@@ -134,6 +143,9 @@ private:
     /// topmost windows in the domain model render on top.
     void sync_scene_z_order();
 
+    /// Scene trees that must always render above windows (layer-shell overlay/top).
+    std::vector<wlr_scene_tree*> overlay_trees_;
+
     /// --- Group indicator HUD ---
 
     /// Per-indicator scene nodes: three rects forming a directional chevron.
@@ -152,8 +164,9 @@ private:
     /// Update indicator positions, orientations, and opacities.
     void update_group_indicators(Vec2 screen_size);
 
-    /// Color for a group based on its position in the order (deterministic palette).
-    static void group_color(size_t order_index, float alpha, float out_color[4]);
+    /// Color for a group based on its position in the order (config-driven palette).
+    static void group_color(const ChromaConfig* config, size_t order_index,
+                            float alpha, float out_color[4]);
 };
 
 } // namespace chroma

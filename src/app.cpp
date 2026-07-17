@@ -1,19 +1,35 @@
 #include "app.hpp"
+#include "config.hpp"
+#include "spawn.hpp"
 #include <csignal>
 #include <cstdio>
+#include <cstdlib>
 
 namespace chroma {
 
-// Signal handler for wl_event_loop_add_signal — receives ChromaApp* as user data
-static int on_signal(int sig, void* data) {
+// ============================================================================
+// Signal handler
+// ============================================================================
+
+int ChromaApp::on_signal(int sig, void* data) {
     auto* app = static_cast<ChromaApp*>(data);
+    if (sig == SIGHUP) {
+        std::fprintf(stderr, "[chroma] Received SIGHUP, reloading config.\n");
+        app->reload_config();
+        return 0;
+    }
     std::fprintf(stderr, "[chroma] Received signal %d, shutting down.\n", sig);
     app->quit();
     return 0;
 }
 
-ChromaApp::ChromaApp()
-    : xdg_handler_(&server_, &canvas_)
+// ============================================================================
+// Construction / Destruction
+// ============================================================================
+
+ChromaApp::ChromaApp(std::string config_path)
+    : config_path_(std::move(config_path))
+    , xdg_handler_(&server_, &canvas_)
     , layer_shell_(&server_)
     , foreign_toplevel_(&server_)
     , renderer_(&server_, &canvas_, &xdg_handler_, &stacks_)
@@ -21,6 +37,9 @@ ChromaApp::ChromaApp()
 {}
 
 ChromaApp::~ChromaApp() {
+    // Clean up spawned children
+    terminate_spawned_children();
+
     // Remove all frame listeners before outputs are destroyed
     for (auto& data : output_frames_) {
         wl_list_remove(&data.frame.link);
@@ -28,7 +47,105 @@ ChromaApp::~ChromaApp() {
     output_frames_.clear();
 }
 
+// ============================================================================
+// Config and spawning helpers
+// ============================================================================
+
+void ChromaApp::run_pre_init() {
+    for (const auto& rule : config_.pre_init) {
+        std::printf("[chroma] pre-init: spawning '%s'\n", rule.program.c_str());
+        spawn_process(rule.program, rule.args, rule.workdir);
+    }
+}
+
+void ChromaApp::run_post_init() {
+    for (const auto& rule : config_.post_init) {
+        std::printf("[chroma] post-init: spawning '%s'\n", rule.program.c_str());
+        spawn_process(rule.program, rule.args, rule.workdir);
+    }
+}
+
+void ChromaApp::print_bindings() const {
+    std::printf("[chroma] Active keybindings:\n");
+    for (const auto& kb : config_.binds) {
+        std::printf("[chroma]   %-24s → %s", kb.keys.c_str(), kb.action.c_str());
+        if (!kb.arg.empty()) std::printf(" (%s)", kb.arg.c_str());
+        std::printf("\n");
+    }
+    if (config_.binds.empty()) {
+        std::printf("[chroma]   (using built-in defaults)\n");
+    }
+}
+
+void ChromaApp::reload_config() {
+    std::printf("[chroma] Reloading config from %s...\n", config_path_.c_str());
+
+    auto result = load_config(config_path_);
+    if (!result.success) {
+        std::fprintf(stderr, "[chroma] Config reload failed — keeping previous config.\n");
+        for (const auto& err : result.errors) {
+            std::fprintf(stderr, "[chroma]   ERROR: %s\n", err.c_str());
+        }
+        return;
+    }
+
+    for (const auto& warn : result.warnings) {
+        std::fprintf(stderr, "[chroma]   WARNING: %s\n", warn.c_str());
+    }
+
+    config_ = std::move(result.config);
+
+    // Rebuild the keybind map
+    input_router_.rebuild_bindmap();
+
+    // Update renderer config pointer (same config_ address, but values changed)
+    renderer_.set_config(&config_);
+
+    std::printf("[chroma] Config reloaded successfully (%zu binds).\n", config_.binds.size());
+    print_bindings();
+}
+
+// ============================================================================
+// Init
+// ============================================================================
+
 bool ChromaApp::init() {
+    std::printf("╔══════════════════════════════════╗\n");
+    std::printf("║       Chroma WM  v0.1.0          ║\n");
+    std::printf("║  spatial canvas window manager   ║\n");
+    std::printf("╚══════════════════════════════════╝\n\n");
+
+    // --- 1. Load config ---
+    if (config_path_.empty()) {
+        const char* xdg = std::getenv("XDG_CONFIG_HOME");
+        if (xdg && xdg[0]) {
+            config_path_ = std::string(xdg) + "/chroma/config.toml";
+        } else {
+            const char* home = std::getenv("HOME");
+            config_path_ = home ? std::string(home) + "/.config/chroma/config.toml"
+                                : "config.toml";
+        }
+    }
+
+    std::printf("[chroma] Loading config from %s\n", config_path_.c_str());
+    auto result = load_config(config_path_);
+    if (result.success) {
+        config_ = std::move(result.config);
+        for (const auto& warn : result.warnings) {
+            std::fprintf(stderr, "[chroma] Config warning: %s\n", warn.c_str());
+        }
+    } else {
+        std::fprintf(stderr, "[chroma] Config errors — using built-in defaults:\n");
+        for (const auto& err : result.errors) {
+            std::fprintf(stderr, "[chroma]   ERROR: %s\n", err.c_str());
+        }
+        config_.reset();
+    }
+
+    // --- 2. Run pre-init programs ---
+    run_pre_init();
+
+    // --- 3. Initialize server ---
     std::printf("[chroma] Initializing Chroma WM...\n");
 
     if (!server_.init()) {
@@ -36,14 +153,66 @@ bool ChromaApp::init() {
         return false;
     }
 
-    // Register signal handlers via the Wayland event loop (no global needed)
+    // --- 4. Wire signal handlers ---
     {
         auto* loop = wl_display_get_event_loop(server_.display);
         wl_event_loop_add_signal(loop, SIGTERM, on_signal, this);
         wl_event_loop_add_signal(loop, SIGINT, on_signal, this);
+        wl_event_loop_add_signal(loop, SIGHUP, on_signal, this);
     }
 
-    // Wire XDG shell handler → domain + renderer
+    // --- 5. Set up InputRouter with config ---
+    input_router_.set_config(&config_);
+    input_router_.rebuild_bindmap();
+
+    // Wire input callbacks for spawn/exec/reload
+    input_router_.on_spawn = [this](const std::string& arg) {
+        // arg may contain program + args separated by spaces.
+        // Simple split: first word is program, rest are args.
+        if (arg.empty()) return;
+        size_t space = arg.find(' ');
+        std::string prog = arg.substr(0, space);
+        std::vector<std::string> spawn_args;
+        if (space != std::string::npos) {
+            // Simple space-split for remaining args
+            std::string rest = arg.substr(space + 1);
+            size_t pos = 0;
+            while (pos < rest.size()) {
+                // Skip leading spaces
+                while (pos < rest.size() && rest[pos] == ' ') pos++;
+                if (pos >= rest.size()) break;
+                size_t end = rest.find(' ', pos);
+                if (end == std::string::npos) end = rest.size();
+                spawn_args.push_back(rest.substr(pos, end - pos));
+                pos = end;
+            }
+        }
+        spawn_process(prog, spawn_args);
+    };
+    input_router_.on_exec = [this](const std::string& arg) {
+        if (arg.empty()) return;
+        size_t space = arg.find(' ');
+        std::string prog = arg.substr(0, space);
+        std::vector<std::string> exec_args;
+        if (space != std::string::npos) {
+            std::string rest = arg.substr(space + 1);
+            size_t pos = 0;
+            while (pos < rest.size()) {
+                while (pos < rest.size() && rest[pos] == ' ') pos++;
+                if (pos >= rest.size()) break;
+                size_t end = rest.find(' ', pos);
+                if (end == std::string::npos) end = rest.size();
+                exec_args.push_back(rest.substr(pos, end - pos));
+                pos = end;
+            }
+        }
+        exec_process(prog, exec_args);
+    };
+    input_router_.on_reload_config = [this]() {
+        this->reload_config();
+    };
+
+    // --- 6. Wire XDG shell handler → domain + renderer ---
     xdg_handler_.on_window_created = [this](WindowId id, wlr_surface* s) {
         this->on_new_window(id, s);
     };
@@ -67,7 +236,7 @@ bool ChromaApp::init() {
         this->foreign_toplevel_.on_app_id_changed(id, app_id);
     };
 
-    // Wire foreign-toplevel client activate requests → focus
+    // --- 7. Wire foreign-toplevel client activate requests → focus ---
     foreign_toplevel_.on_client_activate_request = [this](WindowId id) {
         this->canvas_.set_focus(id);
         this->focus_.focused(id);
@@ -82,48 +251,76 @@ bool ChromaApp::init() {
     // Wire seat manager → input
     seat_.connect();
 
+    // Prevent XDG focus changes from stealing keyboard from exclusive layer
+    // surfaces (wofi, rofi, etc.). The layer shell handler tracks whether
+    // any surface has exclusive keyboard interactivity.
+    seat_.on_check_exclusive_focus = [this]() -> bool {
+        for (auto* so : server_.scene_outputs) {
+            if (layer_shell_.has_exclusive_focus(so->output)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // Provide the exclusive layer surface for pointer event routing.
+    seat_.on_get_exclusive_surface = [this]() -> wlr_surface* {
+        for (auto* so : server_.scene_outputs) {
+            auto* s = layer_shell_.exclusive_surface_for(so->output);
+            if (s) return s;
+        }
+        return nullptr;
+    };
+    seat_.on_get_exclusive_surface_pos = [this]() -> Vec2 {
+        for (auto* so : server_.scene_outputs) {
+            auto* s = layer_shell_.exclusive_surface_for(so->output);
+            if (s) return layer_shell_.exclusive_surface_position(so->output);
+        }
+        return Vec2{0, 0};
+    };
+
     // Wire seat focus changes → foreign-toplevel
     seat_.on_focus_changed = [this](WindowId id) {
         this->foreign_toplevel_.on_focus_changed(id);
     };
 
-    // Wire the server's output-created callback so we set up frame handlers
-    // on top of the common output setup performed by WlrootsServer.
+    // Wire the server's output-created callback
     server_.on_output_created = [this](wlr_output* output, wlr_scene_output* scene_output) {
         this->on_new_output(output, scene_output);
     };
 
-    // Handle xdg_activation requests — use wl_container_of in the static handler
+    // --- 8. XDG activation requests ---
     if (server_.xdg_activation) {
         on_activation_request_.notify = handle_activation_request;
         wl_signal_add(&server_.xdg_activation->events.request_activate,
                       &on_activation_request_);
     }
 
-    // NOW start the backend — all listeners are connected and will receive
-    // the new_output / new_input events for existing devices.
+    // --- 9. Pass config to renderer ---
+    renderer_.set_config(&config_);
+
+    // --- 10. Start the backend ---
     if (!server_.start_backend()) {
         std::fprintf(stderr, "[chroma] Failed to start backend\n");
         return false;
     }
 
-    // Set up a background color for the scene
-    // Use a very large rect so it covers any display size (up to 16K).
-    float bg_color[4] = {0.08f, 0.08f, 0.10f, 1.0f};
-    wlr_scene_rect_create(&server_.scene->tree, 16384, 16384, bg_color);
+    // --- 11. Background color (from config) ---
+    {
+        float bg_color[4];
+        bg_color[0] = config_.theme.background[0];
+        bg_color[1] = config_.theme.background[1];
+        bg_color[2] = config_.theme.background[2];
+        bg_color[3] = config_.theme.background[3];
+        wlr_scene_rect_create(&server_.scene->tree, 16384, 16384, bg_color);
+    }
 
     std::printf("[chroma] Initialization complete.\n");
     std::printf("[chroma] WAYLAND_DISPLAY=%s\n", getenv("WAYLAND_DISPLAY"));
-    std::printf("[chroma] Controls:\n");
-    std::printf("[chroma]   Super+Arrows  = pan canvas\n");
-    std::printf("[chroma]   Super+Plus/-  = zoom\n");
-    std::printf("[chroma]   Super+Tab     = cycle focus\n");
-    std::printf("[chroma]   Super+S       = cycle stack\n");
-    std::printf("[chroma]   Super+Shift+S = stack window\n");
-    std::printf("[chroma]   Super+G       = group nearby\n");
-    std::printf("[chroma]   Super+[/]     = jump to prev/next group\n");
-    std::printf("[chroma]   Super+1..9    = jump to group by number\n");
-    std::printf("[chroma]   Super+Shift+E = quit\n");
+    print_bindings();
+
+    // --- 12. Run post-init programs ---
+    run_post_init();
 
     return true;
 }
@@ -135,6 +332,7 @@ void ChromaApp::run() {
 }
 
 void ChromaApp::quit() {
+    terminate_spawned_children();
     server_.terminate();
 }
 
@@ -195,6 +393,11 @@ void ChromaApp::on_new_output(wlr_output* output, wlr_scene_output* scene_output
     // Create per-output layer shell trees
     layer_shell_.on_output_created(output);
 
+    // Register overlay/top trees with renderer so they always render above windows
+    for (auto* tree : layer_shell_.overlay_and_top_trees()) {
+        renderer_.register_overlay_tree(tree);
+    }
+
     output_frames_.emplace_back();
     OutputFrameData& data = output_frames_.back();
     data.output = output;
@@ -223,17 +426,12 @@ void ChromaApp::handle_activation_request(wl_listener* listener, void* data) {
     auto* event = static_cast<wlr_xdg_activation_v1_request_activate_event*>(data);
     if (!event) return;
 
-    // Try to find the window that should be activated.
-    // The event provides both a surface (the requesting window) and
-    // optionally a token (for startup-sequence validation).
     wlr_surface* surface = event->surface;
     if (!surface && event->token) {
-        // Fall back to the token's source surface if no direct surface given
         surface = event->token->surface;
     }
 
     if (surface) {
-        // Check if this is an XDG toplevel surface
         auto* xdg_surface = wlr_xdg_surface_try_from_wlr_surface(surface);
         if (xdg_surface && xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
             WindowId id = app->xdg_handler_.window_for(xdg_surface->toplevel);

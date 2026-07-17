@@ -8,8 +8,14 @@
 /// The router is pure domain logic: it takes keysym + modifiers → Action.
 /// The adapter layer (SeatManager) feeds it events from wlroots/libinput
 /// and executes the returned actions.
+///
+/// Keybindings are config-driven via ChromaConfig. The config's [[bind]]
+/// entries are parsed into a lookup map by rebuild_bindmap(). If the config
+/// has no binds, a built-in default set is used (matching the previous
+/// hardcoded behavior).
 
 #include "types.hpp"
+#include "config.hpp"
 #include "canvas.hpp"
 #include "focus.hpp"
 #include "stack.hpp"
@@ -20,21 +26,11 @@
 namespace chroma {
 
 // ============================================================================
-// InputRouter — translates raw input into domain actions
+// Key & Modifier constants
 // ============================================================================
 
-/// Key modifiers (mirrors wlr_keyboard_modifier but domain-pure).
-namespace Mod {
-    constexpr uint32_t NONE  = 0;
-    constexpr uint32_t SHIFT = 1;
-    constexpr uint32_t CAPS  = 2;
-    constexpr uint32_t CTRL  = 4;
-    constexpr uint32_t ALT   = 8;
-    constexpr uint32_t MOD2  = 16;
-    constexpr uint32_t MOD3  = 32;
-    constexpr uint32_t SUPER = 64;
-    constexpr uint32_t MOD5  = 128;
-}
+/// Modifier constants are defined in types.hpp (namespace Mod).
+/// The constants below are XKB keysym values used by the compositor.
 
 /// XKB keysym values we use.
 namespace Key {
@@ -70,6 +66,10 @@ namespace Key {
     constexpr uint32_t RIGHT_BRACKET = 0x005D; // ]
 }
 
+// ============================================================================
+// Action enum
+// ============================================================================
+
 /// Action the input router can emit — used for testing / extensibility.
 enum class Action {
     NONE,            ///< No action taken (key forwarded to client)
@@ -97,11 +97,39 @@ enum class Action {
     JUMP_GROUP_8,    ///< Jump directly to group 8
     JUMP_GROUP_9,    ///< Jump directly to group 9
     QUIT,            ///< Terminate the compositor
+
+    // Config-driven actions
+    SPAWN,           ///< Spawn a program (arg passed via callback)
+    EXEC,            ///< Replace compositor with a program (callback)
+    RELOAD_CONFIG,   ///< Reload config from disk
 };
+
+/// Parse an action name string to an Action enum value.
+/// Returns Action::NONE if the string doesn't match any known action.
+Action parse_action_string(std::string_view name);
+
+/// Convert an Action to its string name (for debug/logging).
+std::string_view action_to_string(Action action);
+
+// ============================================================================
+// InputRouter — translates raw input into domain actions
+// ============================================================================
 
 class InputRouter {
 public:
+    InputRouter() = default;
+
+    /// Set the config to use for keybind resolution.
+    /// Call rebuild_bindmap() after setting a new config.
+    void set_config(const ChromaConfig* config) { config_ = config; }
+
+    /// Rebuild the internal keybind lookup map from the current config.
+    /// If the config has no binds, populate with built-in defaults.
+    void rebuild_bindmap();
+
     /// Process a key event. Returns the action taken (or NONE).
+    /// Spawn/exec/reload actions are dispatched via callbacks and
+    /// return Action::NONE (the caller sees no action to handle).
     Action on_key(Canvas& canvas, FocusTracker& focus, StackManager& stacks,
                   uint32_t keysym, uint32_t modifiers, Vec2 screen_size);
 
@@ -115,13 +143,41 @@ public:
 
     /// Whether the Super key is held (for drag operations).
     bool super_held() const { return super_held_; }
-    
+
     /// Set the Super-key-held state (called from SeatManager modifier handler).
     void set_super_held(bool held) { super_held_ = held; }
+
+    // --- Callbacks for config-driven actions ---
+
+    /// Called when a "spawn" action fires. The arg string is the program to spawn.
+    std::function<void(const std::string& arg)> on_spawn;
+
+    /// Called when an "exec" action fires. The arg string is the program.
+    std::function<void(const std::string& arg)> on_exec;
+
+    /// Called when a "reload_config" action fires.
+    std::function<void()> on_reload_config;
 
 private:
     Vec2 pointer_screen_{0, 0};
     bool super_held_{false};
+
+    const ChromaConfig* config_{nullptr};
+
+    /// Resolved binding — action + optional arg, ready to execute.
+    struct ResolvedBind {
+        Action action{Action::NONE};
+        std::string arg;
+    };
+
+    /// Lookup key = (modifiers << 32) | keysym → resolved action.
+    std::unordered_map<uint64_t, ResolvedBind> bindmap_;
+
+    /// Default keybinds (used when config has no binds).
+    std::vector<Keybinding> default_binds_;
+
+    /// Normalize a keysym to lowercase for matching (A-Z → a-z, etc.).
+    static uint32_t keysym_lower(uint32_t keysym);
 };
 
 } // namespace chroma

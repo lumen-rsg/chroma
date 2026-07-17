@@ -91,6 +91,12 @@ Vec2 SeatManager::active_output_size() const {
 }
 
 void SeatManager::update_keyboard_focus(XdgShellHandler* xdg_handler) {
+    // If an exclusive layer surface (wofi, rofi, etc.) currently owns
+    // the keyboard, don't steal focus away from it.
+    if (on_check_exclusive_focus && on_check_exclusive_focus()) {
+        return;
+    }
+
     WindowId focused = focus_->current();
     
     // Skip if focus hasn't changed
@@ -351,8 +357,12 @@ void SeatManager::handle_pointer_motion_absolute(wl_listener* listener, void* da
 void SeatManager::handle_pointer_button(wl_listener* listener, void* data) {
     SeatManager* self = wl_container_of(listener, self, on_pointer_button_);
     auto* event = static_cast<wlr_pointer_button_event*>(data);
-    wlr_seat_pointer_notify_button(self->server_->seat,
-        event->time_msec, event->button, event->state);
+    // Raw button events are processed by wlr_cursor (attached via
+    // wlr_cursor_attach_input_device) and re-emitted as cursor events.
+    // The cursor handler (handle_cursor_button) does compositor logic
+    // and forwards to clients.  Don't double-forward here.
+    (void)self;
+    (void)event;
 }
 
 void SeatManager::handle_pointer_axis(wl_listener* listener, void* data) {
@@ -493,8 +503,30 @@ void SeatManager::handle_cursor_button(wl_listener* listener, void* data) {
         return;
     }
 
+    // If an exclusive layer surface (wofi, rofi) is open, skip all
+    // window drag/resize/click logic — the click belongs to the overlay.
+    bool exclusive_layer_active = self->on_check_exclusive_focus
+                               && self->on_check_exclusive_focus();
+
+    if (pressed && exclusive_layer_active) {
+        if (self->on_get_exclusive_surface) {
+            wlr_surface* surface = self->on_get_exclusive_surface();
+            Vec2 surf_pos{0, 0};
+            if (self->on_get_exclusive_surface_pos) {
+                surf_pos = self->on_get_exclusive_surface_pos();
+            }
+            if (surface) {
+                double sx = self->cursor_pos_.x - surf_pos.x;
+                double sy = self->cursor_pos_.y - surf_pos.y;
+                wlr_seat_pointer_notify_enter(self->server_->seat, surface, sx, sy);
+                wlr_seat_pointer_notify_motion(self->server_->seat,
+                    event->time_msec, sx, sy);
+            }
+        }
+    }
+
     // Regular left press on a window → start potential drag or resize
-    if (pressed && is_left) {
+    if (pressed && is_left && !exclusive_layer_active) {
         Vec2 screen_size = self->active_output_size();
         Vec2 canvas_pos = self->canvas_->screen_to_canvas(self->cursor_pos_, screen_size);
         WindowId id = self->canvas_->window_at(canvas_pos);

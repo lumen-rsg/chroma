@@ -45,6 +45,10 @@ chroma_sources = files(
   'src/stack.cpp',
   'src/input.cpp',
 
+  # Config & spawning
+  'src/config.cpp',
+  'src/spawn.cpp',
+
   # Adapters
   'src/server.cpp',
   'src/xdg_handler.cpp',
@@ -71,6 +75,9 @@ chroma_headers = files(
   'src/stack.hpp',
   'src/input.hpp',
   'src/animation.hpp',
+  'src/keys.hpp',
+  'src/config.hpp',
+  'src/spawn.hpp',
   'src/server.hpp',
   'src/xdg_handler.hpp',
   'src/layer_shell.hpp',

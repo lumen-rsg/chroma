@@ -1,5 +1,6 @@
 #pragma once
 
+#include "types.hpp"
 #include "server.hpp"
 #include <unordered_map>
 #include <vector>
@@ -59,6 +60,22 @@ public:
     /// After arrangement, find and focus the topmost exclusive surface
     /// on overlay/top. Returns true if an exclusive surface claimed focus.
     bool update_keyboard_focus(wlr_output* output);
+
+    /// Check if the given output has an exclusive layer surface that
+    /// currently owns keyboard focus. Pure query, no side effects.
+    bool has_exclusive_focus(wlr_output* output) const;
+
+    /// Return the wlr_surface of the topmost exclusive layer surface
+    /// on the given output, or nullptr if none.
+    wlr_surface* exclusive_surface_for(wlr_output* output) const;
+
+    /// Return the screen position of the topmost exclusive layer surface
+    /// on the given output. Returns (0,0) if none.
+    Vec2 exclusive_surface_position(wlr_output* output) const;
+
+    /// Return all overlay and top layer scene trees (for renderer z-order fixup).
+    /// The renderer must re-raise these above windows each frame.
+    std::vector<wlr_scene_tree*> overlay_and_top_trees() const;
 
 private:
     WlrootsServer* server_;

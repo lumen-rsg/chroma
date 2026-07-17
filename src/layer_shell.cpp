@@ -278,6 +278,9 @@ void LayerShellHandler::arrange_layers(wlr_output* output) {
 
     // Trigger a frame so the scene updates are rendered
     server_->schedule_all_frames();
+
+    // If any exclusive layer surface wants keyboard focus, give it focus now.
+    update_keyboard_focus(output);
 }
 
 void LayerShellHandler::arrange_layer(
@@ -357,6 +360,115 @@ bool LayerShellHandler::update_keyboard_focus(wlr_output* output) {
     }
 
     return false;
+}
+
+bool LayerShellHandler::has_exclusive_focus(wlr_output* output) const {
+    static constexpr enum zwlr_layer_shell_v1_layer scan_layers[] = {
+        ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+        ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+    };
+
+    for (auto layer : scan_layers) {
+        for (const auto& [ls, data] : surfaces_) {
+            if (data.output != output) continue;
+            if (!data.mapped) continue;
+            if (ls->current.layer != layer) continue;
+            if (ls->current.keyboard_interactive ==
+                ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+wlr_surface* LayerShellHandler::exclusive_surface_for(wlr_output* output) const {
+    static constexpr enum zwlr_layer_shell_v1_layer scan_layers[] = {
+        ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+        ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+    };
+
+    wlr_layer_surface_v1* best = nullptr;
+    int best_z = -1;
+
+    for (auto layer : scan_layers) {
+        for (const auto& [ls, data] : surfaces_) {
+            if (data.output != output) continue;
+            if (!data.mapped) continue;
+            if (ls->current.layer != layer) continue;
+            if (ls->current.keyboard_interactive !=
+                ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE)
+                continue;
+            if (!data.scene_layer_surface) continue;
+
+            auto* node = &data.scene_layer_surface->tree->node;
+            int z = 0;
+            wlr_scene_node* sibling;
+            wl_list_for_each(sibling, &node->parent->children, link) {
+                if (sibling == node) break;
+                z++;
+            }
+            if (z > best_z) {
+                best_z = z;
+                best = ls;
+            }
+        }
+        if (best) break; // overlay takes priority over top
+    }
+
+    return best ? best->surface : nullptr;
+}
+
+Vec2 LayerShellHandler::exclusive_surface_position(wlr_output* output) const {
+    static constexpr enum zwlr_layer_shell_v1_layer scan_layers[] = {
+        ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+        ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+    };
+
+    for (auto layer : scan_layers) {
+        wlr_layer_surface_v1* best = nullptr;
+        int best_z = -1;
+        const LayerSurfaceData* best_data = nullptr;
+
+        for (const auto& [ls, data] : surfaces_) {
+            if (data.output != output) continue;
+            if (!data.mapped) continue;
+            if (ls->current.layer != layer) continue;
+            if (ls->current.keyboard_interactive !=
+                ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE)
+                continue;
+            if (!data.scene_layer_surface) continue;
+
+            auto* node = &data.scene_layer_surface->tree->node;
+            int z = 0;
+            wlr_scene_node* sibling;
+            wl_list_for_each(sibling, &node->parent->children, link) {
+                if (sibling == node) break;
+                z++;
+            }
+            if (z > best_z) {
+                best_z = z;
+                best = ls;
+                best_data = &data;
+            }
+        }
+
+        if (best && best_data && best_data->scene_layer_surface) {
+            auto* node = &best_data->scene_layer_surface->tree->node;
+            return Vec2{static_cast<float>(node->x), static_cast<float>(node->y)};
+        }
+    }
+
+    return Vec2{0, 0};
+}
+
+std::vector<wlr_scene_tree*> LayerShellHandler::overlay_and_top_trees() const {
+    std::vector<wlr_scene_tree*> trees;
+    for (const auto& [output, layers] : output_layers_) {
+        if (layers.overlay) trees.push_back(layers.overlay);
+        if (layers.top)    trees.push_back(layers.top);
+    }
+    return trees;
 }
 
 } // namespace chroma

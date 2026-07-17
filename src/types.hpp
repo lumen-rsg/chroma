@@ -172,6 +172,23 @@ struct Transform2D {
 };
 
 // ============================================================================
+// Input modifier constants
+// ============================================================================
+
+/// Key modifiers (mirrors wlr_keyboard_modifier but domain-pure).
+namespace Mod {
+    constexpr uint32_t NONE  = 0;
+    constexpr uint32_t SHIFT = 1;
+    constexpr uint32_t CAPS  = 2;
+    constexpr uint32_t CTRL  = 4;
+    constexpr uint32_t ALT   = 8;
+    constexpr uint32_t MOD2  = 16;
+    constexpr uint32_t MOD3  = 32;
+    constexpr uint32_t SUPER = 64;
+    constexpr uint32_t MOD5  = 128;
+}
+
+// ============================================================================
 // ID Types
 // ============================================================================
 
