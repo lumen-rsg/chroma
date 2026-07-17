@@ -81,7 +81,7 @@ bool WlrootsServer::init() {
     }
 
     // Layer shell (for panels, wallpapers, overlays, lock screens)
-    layer_shell = wlr_layer_shell_v1_create(display, 4);
+    layer_shell = wlr_layer_shell_v1_create(display, 5);
     if (!layer_shell) {
         std::fprintf(stderr, "Failed to create layer shell\n");
         // non-fatal — the compositor still runs but without bars/overlays

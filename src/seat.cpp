@@ -431,6 +431,28 @@ void SeatManager::handle_cursor_motion(wl_listener* listener, void* data) {
     }
 
     self->input_router_->on_pointer_move(self->cursor_pos_);
+
+    // Perform a scene hit test to find the surface under the cursor,
+    // then update the seat's pointer focus so button events are routed.
+    double sx = 0, sy = 0;
+    wlr_surface* surface_at_cursor = nullptr;
+    wlr_scene_node* node = wlr_scene_node_at(
+        &self->server_->scene->tree.node, self->cursor_pos_.x, self->cursor_pos_.y, &sx, &sy);
+    if (node && node->type == WLR_SCENE_NODE_BUFFER) {
+        auto* scene_buffer = wlr_scene_buffer_from_node(node);
+        if (scene_buffer) {
+            auto* scene_surface = wlr_scene_surface_try_from_buffer(scene_buffer);
+            if (scene_surface) {
+                surface_at_cursor = scene_surface->surface;
+            }
+        }
+    }
+
+    if (surface_at_cursor) {
+        wlr_seat_pointer_notify_enter(self->server_->seat, surface_at_cursor, sx, sy);
+    } else {
+        wlr_seat_pointer_clear_focus(self->server_->seat);
+    }
     wlr_seat_pointer_notify_motion(self->server_->seat,
         event->time_msec, self->cursor_pos_.x, self->cursor_pos_.y);
 }
@@ -485,6 +507,28 @@ void SeatManager::handle_cursor_motion_absolute(wl_listener* listener, void* dat
     }
 
     self->input_router_->on_pointer_move(self->cursor_pos_);
+
+    // Perform a scene hit test to find the surface under the cursor,
+    // then update the seat's pointer focus so button events are routed.
+    double sx = 0, sy = 0;
+    wlr_surface* surface_at_cursor = nullptr;
+    wlr_scene_node* node = wlr_scene_node_at(
+        &self->server_->scene->tree.node, self->cursor_pos_.x, self->cursor_pos_.y, &sx, &sy);
+    if (node && node->type == WLR_SCENE_NODE_BUFFER) {
+        auto* scene_buffer = wlr_scene_buffer_from_node(node);
+        if (scene_buffer) {
+            auto* scene_surface = wlr_scene_surface_try_from_buffer(scene_buffer);
+            if (scene_surface) {
+                surface_at_cursor = scene_surface->surface;
+            }
+        }
+    }
+
+    if (surface_at_cursor) {
+        wlr_seat_pointer_notify_enter(self->server_->seat, surface_at_cursor, sx, sy);
+    } else {
+        wlr_seat_pointer_clear_focus(self->server_->seat);
+    }
     wlr_seat_pointer_notify_motion(self->server_->seat,
         event->time_msec, self->cursor_pos_.x, self->cursor_pos_.y);
 }
