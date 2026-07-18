@@ -38,6 +38,7 @@ Action parse_action_string(std::string_view name) {
     if (name == "jump_group_7")      return Action::JUMP_GROUP_7;
     if (name == "jump_group_8")      return Action::JUMP_GROUP_8;
     if (name == "jump_group_9")      return Action::JUMP_GROUP_9;
+    if (name == "close_window")      return Action::CLOSE_WINDOW;
     return Action::NONE;
 }
 
@@ -70,6 +71,7 @@ std::string_view action_to_string(Action action) {
     case Action::JUMP_GROUP_7:    return "jump_group_7";
     case Action::JUMP_GROUP_8:    return "jump_group_8";
     case Action::JUMP_GROUP_9:    return "jump_group_9";
+    case Action::CLOSE_WINDOW:    return "close_window";
     case Action::NONE:
     default:                      return "none";
     }
@@ -105,6 +107,7 @@ static std::vector<Keybinding> make_default_binds() {
         {"Super+7",          "jump_group_7",   "", 0, 0},
         {"Super+8",          "jump_group_8",   "", 0, 0},
         {"Super+9",          "jump_group_9",   "", 0, 0},
+        {"Super+Q",          "close_window",   "", 0, 0},
     };
 }
 
@@ -311,6 +314,9 @@ Action InputRouter::on_key(Canvas& canvas, FocusTracker& focus, StackManager& st
     case Action::JUMP_GROUP_8:
     case Action::JUMP_GROUP_9:
         return action;
+
+    case Action::CLOSE_WINDOW:
+        return Action::CLOSE_WINDOW; // handled by app layer (SeatManager)
 
     case Action::NONE:
     default:

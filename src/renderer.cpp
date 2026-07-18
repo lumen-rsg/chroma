@@ -220,7 +220,7 @@ void SceneRenderer::on_window_added(WindowId id, wlr_surface* /*surface*/) {
     scene_data_[id] = data;
 }
 
-void SceneRenderer::on_window_mapped(WindowId id, wlr_surface* surface) {
+void SceneRenderer::on_window_mapped(WindowId id, wlr_surface* /*surface*/) {
     auto it = scene_data_.find(id);
     if (it == scene_data_.end()) return;
 
@@ -233,10 +233,15 @@ void SceneRenderer::on_window_mapped(WindowId id, wlr_surface* surface) {
         data.surface_node = nullptr;
     }
 
-    if (surface) {
-        auto* scene_surface = wlr_scene_surface_create(data.tree, surface);
-        if (scene_surface && scene_surface->buffer) {
-            data.surface_node = &scene_surface->buffer->node;
+    // Use wlr_scene_xdg_surface_create instead of wlr_scene_surface_create.
+    // The latter explicitly ignores sub-surfaces, which breaks Firefox and
+    // GNOME apps (nautilus, etc.) that rely on sub-surfaces for their content.
+    // wlr_scene_xdg_surface_create also handles window-geometry offset
+    // automatically, so we no longer need manual source_box / dest_size.
+    if (auto* toplevel = xdg_handler_->toplevel_for(id)) {
+        auto* scene_tree = wlr_scene_xdg_surface_create(data.tree, toplevel->base);
+        if (scene_tree) {
+            data.surface_node = &scene_tree->node;
         }
     }
 
@@ -520,47 +525,21 @@ void SceneRenderer::render_frame(wlr_scene_output* scene_output, wlr_output* out
                 static_cast<int>(data.visual_size.y));
         }
 
-        // Surface node
+        // Surface node — wlr_scene_xdg_surface_create handles window geometry
+        // offset and sub-surfaces internally, so we just position at origin
+        // and apply an optional clip during open/close animations.
         if (data.surface_node && win.mapped) {
-            auto* scene_buffer = wlr_scene_buffer_from_node(data.surface_node);
-            if (scene_buffer) {
-                int geo_x = 0, geo_y = 0;
-                int geo_w = 0, geo_h = 0;
-                if (auto* toplevel = xdg_handler_->toplevel_for(id)) {
-                    auto* xdg_surface = toplevel->base;
-                    if (xdg_surface->geometry.width > 0 &&
-                        xdg_surface->geometry.height > 0) {
-                        geo_x = xdg_surface->geometry.x;
-                        geo_y = xdg_surface->geometry.y;
-                        geo_w = xdg_surface->geometry.width;
-                        geo_h = xdg_surface->geometry.height;
-                    }
-                }
+            wlr_scene_node_set_position(data.surface_node, 0, 0);
 
-                if (geo_w > 0 && geo_h > 0) {
-                    struct wlr_fbox src_box = {
-                        static_cast<float>(geo_x),
-                        static_cast<float>(geo_y),
-                        static_cast<float>(geo_w),
-                        static_cast<float>(geo_h)
-                    };
-                    wlr_scene_buffer_set_source_box(scene_buffer, &src_box);
-                }
-
-                if (data.open_anim.active || data.close_anim.active) {
-                    int clip_w = static_cast<int>(data.visual_size.x);
-                    int clip_h = static_cast<int>(data.visual_size.y);
-                    if (clip_w < 1) clip_w = 1;
-                    if (clip_h < 1) clip_h = 1;
-                    wlr_scene_buffer_set_dest_size(scene_buffer, clip_w, clip_h);
-                    wlr_scene_node_set_position(data.surface_node, 0, 0);
-                } else {
-                    int dst_w = static_cast<int>(data.visual_size.x);
-                    int dst_h = static_cast<int>(data.visual_size.y);
-                    if (dst_w < 1) dst_w = 1;
-                    if (dst_h < 1) dst_h = 1;
-                    wlr_scene_buffer_set_dest_size(scene_buffer, dst_w, dst_h);
-                }
+            if (data.open_anim.active || data.close_anim.active) {
+                int clip_w = static_cast<int>(data.visual_size.x);
+                int clip_h = static_cast<int>(data.visual_size.y);
+                if (clip_w < 1) clip_w = 1;
+                if (clip_h < 1) clip_h = 1;
+                struct wlr_box clip_box = {0, 0, clip_w, clip_h};
+                wlr_scene_subsurface_tree_set_clip(data.surface_node, &clip_box);
+            } else {
+                wlr_scene_subsurface_tree_set_clip(data.surface_node, nullptr);
             }
         }
 

@@ -254,6 +254,16 @@ void SeatManager::handle_keyboard_key(wl_listener* listener, void* data) {
             case Action::QUIT:
                 self->server_->terminate();
                 return;
+            case Action::CLOSE_WINDOW: {
+                WindowId f = self->focus_->current();
+                if (f != INVALID_WINDOW) {
+                    if (auto* tl = self->xdg_handler_->toplevel_for(f)) {
+                        wlr_xdg_toplevel_send_close(tl);
+                        std::fprintf(stderr, "[chroma] close_window: sent close to window %lu\n", f);
+                    }
+                }
+                break;
+            }
             case Action::GROUP_HERE: {
                 WindowId f = self->focus_->current();
                 if (f != INVALID_WINDOW)
@@ -569,8 +579,11 @@ void SeatManager::handle_cursor_button(wl_listener* listener, void* data) {
         }
     }
 
-    // Regular left press on a window → start potential drag or resize
-    if (pressed && is_left && !exclusive_layer_active) {
+    // Super+left press on a window → start drag or resize.
+    // Without Super, clicks pass through to the client normally.
+    bool super_held = (self->modifier_state_ & Mod::SUPER) != 0;
+
+    if (pressed && is_left && !exclusive_layer_active && super_held) {
         Vec2 screen_size = self->active_output_size();
         Vec2 canvas_pos = self->canvas_->screen_to_canvas(self->cursor_pos_, screen_size);
         WindowId id = self->canvas_->window_at(canvas_pos);

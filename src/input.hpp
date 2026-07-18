@@ -96,6 +96,7 @@ enum class Action {
     JUMP_GROUP_7,    ///< Jump directly to group 7
     JUMP_GROUP_8,    ///< Jump directly to group 8
     JUMP_GROUP_9,    ///< Jump directly to group 9
+    CLOSE_WINDOW,    ///< Close the focused window
     QUIT,            ///< Terminate the compositor
 
     // Config-driven actions

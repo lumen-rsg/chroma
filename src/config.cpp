@@ -597,6 +597,10 @@ action = "jump_group_8"
 keys = "Super+9"
 action = "jump_group_9"
 
+[[bind]]
+keys = "Super+Q"
+action = "close_window"
+
 # Uncomment to enable config reload keybind:
 # [[bind]]
 # keys = "Super+Shift+R"
