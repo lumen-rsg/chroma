@@ -29,7 +29,7 @@ ShellRoot {
         }
     }
 
-    // ── Application launcher (lazy overlay, no surface until opened) 
+    // ── Application launcher (lazy overlay, no surface until opened)
     Launcher {
         id: appLauncher
     }

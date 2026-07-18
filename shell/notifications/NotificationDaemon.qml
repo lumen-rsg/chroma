@@ -7,7 +7,7 @@ import "../theme"
 Item {
     id: daemon
 
-    // ── Notification server ───────────────────────────────
+    // ── Notification server ─────────────────────────────────
     NotificationServer {
         id: notifServer
         bodySupported: true
@@ -26,6 +26,14 @@ Item {
         // Start tracking the notification so we can control its lifecycle
         notification.tracked = true
 
+        // Limit visible popups — dismiss oldest if over max
+        while (activePopups.length >= Theme.notifMaxVisible) {
+            var oldest = activePopups.shift()
+            if (oldest && oldest.notif && oldest.notif.tracked) {
+                oldest.notif.dismiss()
+            }
+        }
+
         var comp = Qt.createComponent("NotificationPopup.qml")
         if (comp.status === Component.Ready) {
             var popup = comp.createObject(daemon, {
@@ -39,7 +47,8 @@ Item {
                 function cleanup() {
                     var idx = activePopups.indexOf(popup)
                     if (idx >= 0) activePopups.splice(idx, 1)
-                    popup.destroy(500) // let exit animation play
+                    // Let exit animation play before destroying
+                    popup.dismiss()
                     repositionPopups()
                 }
                 notification.closed.connect(cleanup)
@@ -64,7 +73,9 @@ Item {
         var yOffset = Theme.notifMargin
         for (var i = 0; i < activePopups.length; i++) {
             if (activePopups[i]) {
-                activePopups[i].y = yOffset
+                // Use topMargin so anchors system handles it,
+                // and Behavior on anchors.topMargin animates smoothly
+                activePopups[i].anchors.topMargin = yOffset
                 yOffset += activePopups[i].height + Theme.notifGap
             }
         }

@@ -7,36 +7,62 @@ import "../theme"
 
 Row {
     id: root
-    spacing: 2
+    spacing: 1
 
-    // SystemTray is a singleton — access directly
     Repeater {
         model: SystemTray.items
-        delegate: MouseArea {
-            width: Theme.trayIconSize + 6
+        delegate: Item {
+            id: trayItem
+            width: Theme.trayIconSize + 12
             height: Theme.barHeight
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
 
+            property bool hovered: false
+            property bool pressed: false
+
+            // ── Hover pill background ──────────────────────
             Rectangle {
-                anchors.fill: parent
-                color: parent.containsMouse ? Theme.glassHover : "transparent"
+                anchors.centerIn: parent
+                width: trayItem.width - 4
+                height: parent.height - 10
                 radius: Theme.radiusSm
-                Behavior on color { PropertyAnimation { duration: Theme.animFast } }
+                color: trayItem.hovered ? Theme.glassHover : "transparent"
+                opacity: trayItem.hovered ? 1 : 0
+
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
             }
 
+            // ── Icon with scale feedback ───────────────────
             IconImage {
+                id: trayIcon
                 anchors.centerIn: parent
                 width: Theme.trayIconSize
                 height: Theme.trayIconSize
-                source: modelData.icon
+                source: modelData.icon || ""
                 smooth: true
+                scale: trayItem.pressed ? 0.8 : (trayItem.hovered ? 1.15 : 1.0)
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: Theme.animFast
+                        easing.type: Easing.OutBack
+                    }
+                }
             }
 
-            // Right-click context menu could go here
-            onClicked: {
-                // Activate the tray item on left click
-                // Most SNI items handle activation internally
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onEntered: trayItem.hovered = true
+                onExited: { trayItem.hovered = false; trayItem.pressed = false }
+                onPressed: trayItem.pressed = true
+                onReleased: trayItem.pressed = false
+                onClicked: {
+                    // Left-click activates the tray item
+                    // Most SNI items handle activation internally
+                }
+                // Right-click for context menu could be added here
             }
         }
     }
